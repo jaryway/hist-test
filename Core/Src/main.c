@@ -91,7 +91,7 @@ int _write(int file, char *ptr, int len)
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-  if (htim->Instance == TIM3)
+  if (htim->Instance == TIM3 || htim->Instance == TIM1)
   {
     static uint8_t has_print = 0;
     if (has_print == 0)
@@ -103,7 +103,18 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 void HAL_TIM_PeriodElapsedHalfCpltCallback(TIM_HandleTypeDef *htim)
 {
-  if (htim->Instance == TIM3)
+  if (htim->Instance == TIM1)
+  {
+    // 查看 的实现，它的回调函数是 TIM_DMAPeriodElapsedHalfCplt 里面执行 HAL_TIM_PeriodElapsedHalfCpltCallback
+    // 所以 HAL_TIM_PeriodElapsedHalfCpltCallback 才是半传输完成的回调函数
+    static uint8_t has_half_print = 0;
+    if (has_half_print == 0)
+    {
+      printf("222\r\n");
+      has_half_print = 1;
+    }
+  }
+  else if (htim->Instance == TIM3)
   {
     // 查看 的实现，它的回调函数是 TIM_DMAPeriodElapsedHalfCplt 里面执行 HAL_TIM_PeriodElapsedHalfCpltCallback
     // 所以 HAL_TIM_PeriodElapsedHalfCpltCallback 才是半传输完成的回调函数
@@ -152,6 +163,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
   __enable_irq();
@@ -159,88 +171,12 @@ int main(void)
 
   printf("System start\r\n");
 
-  /* 替换你现有的 DMA 启动相关片段（在 MX_*Init() 调用之后） */
-
   static uint16_t dma_buffer[] = {288, 4608, 2304, 1152, 576, 288, 144};
   uint16_t length = sizeof(dma_buffer) / sizeof(dma_buffer[0]);
-
-  /* 1) 将 DMA 外设地址设为 TIM3->ARR（确保 PeriphInc = DISABLE 已在 tim.c 中设置） */
-  hdma_tim3_ch1_trig.Instance->CPAR = (uint32_t)(&(TIM3->ARR));
-
-  /* 2) 为了测试半传，使用 CIRCULAR 模式（如果 tim.c 把 Init.Mode 设置为 NORMAL，需要在这里重新 init） */
-  hdma_tim3_ch1_trig.Init.Mode = DMA_CIRCULAR;
-  if (HAL_DMA_Init(&hdma_tim3_ch1_trig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /* 3) 确保链接到 UPDATE 槽（如果未链接） */
-  __HAL_LINKDMA(&htim3, hdma[TIM_DMA_ID_UPDATE], hdma_tim3_ch1_trig);
-
-  /* 4) 确保 NVIC 对应 IRQ 已启（MX_DMA_Init 通常已做，但重复一次无妨） */
-  HAL_NVIC_SetPriority(DMA1_Channel6_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel6_IRQn);
-
-  /* 5) 启动 TIM（必须，使 Update/ TRGO 实际产生）——使用 PWM Start 更保险 */
-  // if (HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1) != HAL_OK)
-  // {
-  //   Error_Handler();
-  // }
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
 
   /* 6) 启动 Base+DMA 并检查返回值 */
-  // HAL_StatusTypeDef rc = HAL_TIM_Base_Start_DMA(&htim3, (uint32_t *)dma_buffer, length);
-  // printf("HAL_TIM_Base_Start_DMA rc=%d\r\n", (int)rc);
-  dma_probe_find_tim3_update_channel();
-
-  /* 7) 读出关键寄存器用于现场诊断（在串口或调试器查看） */
-  volatile uint32_t dbg_DMA_CCR = hdma_tim3_ch1_trig.Instance->CCR;
-  volatile uint32_t dbg_DMA_CNDTR = hdma_tim3_ch1_trig.Instance->CNDTR;
-  volatile uint32_t dbg_DMA_CPAR = hdma_tim3_ch1_trig.Instance->CPAR;
-  printf("DMA CCR=0x%08lx CNDTR=%lu CPAR=0x%08lx\r\n",
-         (unsigned long)dbg_DMA_CCR, (unsigned long)dbg_DMA_CNDTR, (unsigned long)dbg_DMA_CPAR);
-
-  /* 诊断：启用 TIM Update 中断并打印关键寄存器 */
-  __HAL_TIM_ENABLE_IT(&htim3, TIM_IT_UPDATE); /* 临时启用 TIM 更新中断用于验证 */
-
-  /* 读 TIM3 状态寄存器等并打印 */
-  printf("TIM3 CR1=0x%08lx CR2=0x%08lx DIER=0x%08lx SR=0x%08lx CNT=0x%08lx ARR=0x%08lx\n",
-         (unsigned long)TIM3->CR1, (unsigned long)TIM3->CR2,
-         (unsigned long)TIM3->DIER, (unsigned long)TIM3->SR,
-         (unsigned long)TIM3->CNT, (unsigned long)TIM3->ARR);
-
-  /* 打印 DMA1 ISR 寄存器（原始），并解析 channel6 的四个标志位 */
-  uint32_t dma_isr = DMA1->ISR;
-  printf("DMA1->ISR = 0x%08lx\n", (unsigned long)dma_isr);
-
-  /* 每个通道占 4 位，从低到高：GIFx, TCIFx, HTIFx, TEIFx (或设备手册顺序)
-     在 STM32F1 中，channel n 的位偏移 = 4*(n-1)。
-     channel6 的偏移 = 20 */
-  uint32_t ch6_shift = 4 * (6 - 1);
-  uint32_t ch6_flags = (dma_isr >> ch6_shift) & 0xF;
-  printf("DMA CH6 flags (bit3..0 = TE/HT/TC/GI) = 0x%1lx\n", (unsigned long)ch6_flags);
-
-  /* 打印并解析 TIM3 DIER（查看 Update DMA request enable 是否置位） */
-  uint32_t dier = TIM3->DIER;
-  printf("TIM3 DIER = 0x%08lx\n", (unsigned long)dier);
-  /* 如果设备手册一致，UDE（Update DMA request enable）通常是 DIER bit 8 (或者一个具体位) —— 直接打印供我判断 */
-  printf("TIM3 DIER bits: UIE=%d, UDE=%d\n", (int)((dier >> 0) & 1), (int)((dier >> 8) & 1));
-
-  /* 打印 DMA channel registers（CCR/CNDTR/CPAR）以复核 */
-  printf("DMA CH6 CCR=0x%08lx CNDTR=%lu CPAR=0x%08lx CMAR=0x%08lx\n",
-         (unsigned long)DMA1_Channel6->CCR,
-         (unsigned long)DMA1_Channel6->CNDTR,
-         (unsigned long)DMA1_Channel6->CPAR,
-         (unsigned long)DMA1_Channel6->CMAR);
-
-  /* 检查 NVIC 是否使能对应中断（简易检查） */
-  uint32_t iser = NVIC->ISER[DMA1_Channel6_IRQn >> 5];
-  uint32_t enabled = (iser >> (DMA1_Channel6_IRQn & 0x1F)) & 1;
-  printf("NVIC ISER for DMA1_Channel6_IRQn = %lu (1=enabled)\n", (unsigned long)enabled);
-
-  /* 检查 htim3.hdma 指针是否指向你正在使用的 hdma 句柄 */
-  printf("htim3.hdma[UPDATE] = %p, hdma_tim3_ch1_trig = %p\n",
-         (void *)htim3.hdma[TIM_DMA_ID_UPDATE], (void *)&hdma_tim3_ch1_trig);
-  
+  HAL_TIM_Base_Start_DMA(&htim3, (uint32_t *)dma_buffer, length);
 
   printf("DMA started\r\n");
 
