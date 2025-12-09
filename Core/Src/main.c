@@ -173,7 +173,7 @@ int main(void)
 
   static uint16_t dma_buffer[] = {288, 4608, 2304, 1152, 576, 288, 144};
   uint16_t length = sizeof(dma_buffer) / sizeof(dma_buffer[0]);
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 
   /* 6) 启动 Base+DMA 并检查返回值 */
   HAL_TIM_Base_Start_DMA(&htim3, (uint32_t *)dma_buffer, length);
