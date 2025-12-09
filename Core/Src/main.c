@@ -42,8 +42,6 @@
 
 #define BUFFER_SIZE 256
 #define SYS_CLK_HZ 72000000.0f // 系统时钟72MHz
-#define MIN_CCR_VALUE 100      // 最小CCR值，对应最高频率
-#define MAX_CCR_VALUE 5000     // 最大CCR值，对应最低频率（启动频率）
 
 /* USER CODE END PD */
 
@@ -57,6 +55,7 @@
 /* USER CODE BEGIN PV */
 
 DMA_DoubleBuffer_t dma_doublebuffer;
+extern DMA_HandleTypeDef hdma_tim3_ch1_trig;
 
 /* USER CODE END PV */
 
@@ -72,124 +71,57 @@ StepperTypeDef stepper86;
 
 uint32_t count = 0; // 中断计数器
 
-// 定时器中断回调函数
+int _write(int file, char *ptr, int len)
+{
+  (void)file;
+  // 在中断上下文中使用非阻塞方式
+  if (__get_IPSR() != 0)
+  {
+    // 在中断中，使用较短的超时时间
+    HAL_UART_Transmit(&huart3, (uint8_t *)ptr, len, 100);
+  }
+  else
+  {
+    // 在主程序中，使用阻塞方式
+    HAL_UART_Transmit(&huart3, (uint8_t *)ptr, len, HAL_MAX_DELAY);
+  }
+  return len;
+}
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM3)
   {
-    count++; // 计数
-    // HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13); // 翻转LED
-    Stepper_process(&stepper86);
+    printf("HAL_TIM_PeriodElapsedCallback\r\n");
   }
 }
-
-void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
-{
-  //  printf("[TSUIC1] HAL_TIM_OC_DelayElapsedCallback!\r\n");
-  if (htim->Instance == MOTOR86_PWM_TIMER)
-  {
-    count++; // 计数
-    // HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-    Stepper_process(&stepper86);
-  }
-}
-
-void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
+void HAL_TIM_PeriodElapsedHalfCpltCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM3)
   {
-    printf("HAL_TIM_PWM_PulseFinishedHalfCpltCallback\r\n");
+    // 查看 的实现，它的回调函数是 TIM_DMAPeriodElapsedHalfCplt 里面执行 HAL_TIM_PeriodElapsedHalfCpltCallback
+    // 所以 HAL_TIM_PeriodElapsedHalfCpltCallback 才是半传输完成的回调函数
+    printf("HAL_TIM_PeriodElapsedHalfCpltCallback\r\n");
   }
 }
 
-void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
+void HAL_DMA_XferHalfCpltCallback(DMA_HandleTypeDef *hdma)
 {
-  if (htim->Instance == TIM3)
+  if (hdma == &hdma_tim3_ch1_trig)
   {
-    printf("HAL_TIM_PWM_PulseFinishedCallback\r\n");
+    /* 在实际中断中不要做大量 printf（可能阻塞），这里仅用于调试。
+       更稳妥的做法是设置一个 volatile flag 或 toggle GPIO。 */
+    printf("HAL_DMA_XferHalfCpltCallback\r\n");
   }
 }
 
-void generate_trapezoid_ccr(uint32_t *buffer, uint32_t start_idx, uint16_t count)
+void HAL_DMA_XferCpltCallback(DMA_HandleTypeDef *hdma)
 {
-  uint32_t total_pulses = 50000;
-  uint32_t accel_pulses = 15000;
-  uint32_t decel_pulses = 15000;
-  uint32_t cruise_pulses = total_pulses - accel_pulses - decel_pulses;
-  // 3000/60*5000=250000Hz
-  //  频率参数
-  float start_freq = 1000.0f;        // 起始频率 (Hz)
-  float max_freq = 3000 / 60 * 5000; // 最大频率 (Hz)
-  float end_freq = 1000.0f;          // 结束频率 (Hz)
-
-  // 计算CCR值（假设定时器时钟为72MHz）
-  const uint32_t timer_clk = 72000000; // 72MHz
-  // TODO: 根据加速脉冲数、匀速脉冲数和减速脉冲数，计算每个脉冲对应的频率
-  const uint32_t pwm_period = 288 - 1; // ARR值
-
-  uint32_t temp_buffer[BUFFER_SIZE]; // BUFFER_SIZE=256
-
-  for (uint16_t i = 0; i < count; i++)
+  if (hdma == &hdma_tim3_ch1_trig)
   {
-    uint32_t idx = start_idx + i;
-    uint32_t pulse_idx = start_idx;
-    // ccr
-
-    float current_freq;
-
-    if (pulse_idx < accel_pulses)
-    {
-      // 加速阶段 - 线性加速
-      float t = (float)pulse_idx / accel_pulses;
-      // 使用线性加速：频率 = 起始频率 + (最大频率-起始频率)*t
-      current_freq = start_freq + (max_freq - start_freq) * t;
-    }
-    else if (pulse_idx < (accel_pulses + cruise_pulses))
-    {
-      // 匀速阶段
-      current_freq = max_freq;
-    }
-    else if (pulse_idx < total_pulses)
-    {
-      // 减速阶段
-      float t = (float)(pulse_idx - (accel_pulses + cruise_pulses)) / decel_pulses;
-      current_freq = max_freq + (end_freq - max_freq) * t;
-    }
-    else
-    {
-      // 超出总脉冲数，使用结束频率
-      current_freq = end_freq;
-    }
-
-    // 计算CCR值
-    // 方法1：直接计算周期时间对应的计数值
-    // CCR决定脉冲宽度，通常设为周期的一半（50%占空比）
-    uint32_t ccr_value;
-
-    if (current_freq > 0)
-    {
-      // 计算ARR值（周期）
-      uint32_t arr_value = (uint32_t)(timer_clk / current_freq);
-      // CCR通常设为ARR的一半，得到50%占空比
-      ccr_value = arr_value / 2;
-
-      // 限制CCR值范围
-      if (ccr_value < MIN_CCR_VALUE)
-        ccr_value = MIN_CCR_VALUE;
-      if (ccr_value > MAX_CCR_VALUE)
-        ccr_value = MAX_CCR_VALUE;
-    }
-    else
-    {
-      ccr_value = MAX_CCR_VALUE; // 频率为0时给最大值
-    }
-
-    temp_buffer[i] = ccr_value;
+    printf("HAL_DMA_XferCpltCallback\r\n");
   }
-
-  memcpy(buffer, temp_buffer, count * 4);
 }
-
 /* USER CODE END 0 */
 
 /**
@@ -231,49 +163,37 @@ int main(void)
   __enable_irq();
   HAL_Delay(1000); // 等待1秒，确保系统稳定
 
-  uint32_t arr = 9216;
+  printf("System start\r\n");
 
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1); // 启动PWM输出
+  // HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1); // 启动PWM输出
 
-  /*
-    PSC = 72MHz
-    CCR = 72
-    电机最高频率为 250KHz
-    通过 DMA 修改 ARR 值，实现频率变化，从而实现电机加减速
-    1、怎么通过 DMA 修改 ARR ？
-    2、怎么生成一个加减速的 ARR 序列？假设函数如下
+  static uint16_t dma_buffer[] = {288, 4608, 2304, 1152, 576, 288, 144};
+  uint16_t length = sizeof(dma_buffer) / sizeof(dma_buffer[0]);
+  HAL_TIM_Base_Stop_DMA(&htim3);
+  HAL_TIM_Base_Start_DMA(&htim3, (uint32_t *)dma_buffer, length);
 
-    void generate_trapezoid_ccr(uint32_t *buffer, uint32_t start_idx, uint16_t count)
+  /* debug_dma_check.c - 放在 HAL_TIM_Base_Start_DMA 返回后用调试器查看 */
+  volatile uint32_t dbg_DMA_CCR = hdma_tim3_ch1_trig.Instance->CCR;
+  volatile uint32_t dbg_DMA_CNDTR = hdma_tim3_ch1_trig.Instance->CNDTR;
+  volatile uint32_t dbg_DMA_CPAR = hdma_tim3_ch1_trig.Instance->CPAR;
+  /* 在调试器里查看 dbg_DMA_* 的值：
+     - dbg_DMA_CNDTR 应等于你传入的长度
+     - dbg_DMA_CCR 的 HTIE/TCIE 位应为 1 (HTIE = 1<<2, TCIE = 1<<1 根据设备手册)
+     - dbg_DMA_CPAR 应等于 (uint32_t)&(TIM3->ARR)
+  */
+
+  if (htim3.hdma[TIM_DMA_ID_UPDATE] != &hdma_tim3_ch1_trig)
+  {
+    /* 链接未生效 */
+    printf("DMA link error\r\n");
+    while (1)
     {
-      uint32_t total_pulses = 50000;
-      uint32_t accel_pulses = 15000;
-      uint32_t decel_pulses = 15000;
-      uint32_t cruise_pulses = total_pulses - accel_pulses - decel_pulses;
-      // 3000/60*5000=250000Hz
-      //  频率参数
-      float start_freq = 1000.0f;        // 起始频率 (Hz)
-      float max_freq = 3000 / 60 * 5000; // 最大频率 (Hz)
-      float end_freq = 1000.0f;          // 结束频率 (Hz)
-
-      // 计算CCR值（假设定时器时钟为72MHz）
-      const uint32_t timer_clk = 72000000; // 72MHz
-      // TODO: 根据加速脉冲数、匀速脉冲数和减速脉冲数，计算每个脉冲对应的频率
     }
-    // 3、dma 双缓冲 怎么实现， 如何监听dma 半传输中断 和 完成传输中断？
+  }
 
-    根据 HAL_TIM_PWM_Start_DMA 的代码
-    htim->hdma[TIM_DMA_ID_CC1]->XferCpltCallback = TIM_DMADelayPulseCplt;
-    htim->hdma[TIM_DMA_ID_CC1]->XferHalfCpltCallback = TIM_DMADelayPulseHalfCplt;
+  // __HAL_TIM_ENABLE_DMA(&htim3, TIM_DMA_UPDATE);
 
-    // Set the DMA error callback
-    htim->hdma[TIM_DMA_ID_CC1]->XferErrorCallback = TIM_DMAError ;
-
-    // Enable the DMA channel
-    if (HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_CC1], (uint32_t)pData, (uint32_t)&htim->Instance->CCR1,
-                          Length) != HAL_OK)
-
-     我们是不是可以模仿这个流程，自己实现一个 DMA 修改 ARR 的功能？
-    */
+  printf("DMA started\r\n");
 
   /* USER CODE END 2 */
 
@@ -281,26 +201,9 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
-
-    while (arr >= 288)
-    {
-
-      __HAL_TIM_SET_AUTORELOAD(&htim3, arr - 1); // 设置ARR值，决定PWM频率
-      HAL_Delay(1);
-      char buffer[50];
-      sprintf(buffer, "current arr: %lu\r\n", arr);
-      HAL_UART_Transmit(&huart3, (uint8_t *)buffer, strlen(buffer), 100);
-      arr--;
-    }
-    // // 每过1秒，通过串口报告中断次数
-    // char buffer[50];
-    // sprintf(buffer, "1s count: %lu\r\n", count);
-    // HAL_UART_Transmit(&huart3, (uint8_t *)buffer, strlen(buffer), 100);
 
     count = 0; // 清零计数器
+    // printf()
   }
   /* USER CODE END 3 */
 }
