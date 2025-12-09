@@ -204,6 +204,15 @@ int main(void)
   printf("DMA CCR=0x%08lx CNDTR=%lu CPAR=0x%08lx\r\n",
          (unsigned long)dbg_DMA_CCR, (unsigned long)dbg_DMA_CNDTR, (unsigned long)dbg_DMA_CPAR);
 
+  /* 诊断：启用 TIM Update 中断并打印关键寄存器 */
+  __HAL_TIM_ENABLE_IT(&htim3, TIM_IT_UPDATE); /* 临时启用 TIM 更新中断用于验证 */
+
+  /* 读 TIM3 状态寄存器等并打印 */
+  printf("TIM3 CR1=0x%08lx CR2=0x%08lx DIER=0x%08lx SR=0x%08lx CNT=0x%08lx ARR=0x%08lx\n",
+         (unsigned long)TIM3->CR1, (unsigned long)TIM3->CR2,
+         (unsigned long)TIM3->DIER, (unsigned long)TIM3->SR,
+         (unsigned long)TIM3->CNT, (unsigned long)TIM3->ARR);
+
   printf("DMA started\r\n");
 
   /* USER CODE END 2 */
