@@ -92,7 +92,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM3)
   {
-    printf("HAL_TIM_PeriodElapsedCallback\r\n");
+    static uint8_t has_print = 0;
+    if (has_print == 0)
+    {
+      printf("HAL_TIM_PeriodElapsedCallback\r\n");
+      has_print = 1;
+    }
   }
 }
 void HAL_TIM_PeriodElapsedHalfCpltCallback(TIM_HandleTypeDef *htim)
@@ -101,7 +106,12 @@ void HAL_TIM_PeriodElapsedHalfCpltCallback(TIM_HandleTypeDef *htim)
   {
     // 查看 的实现，它的回调函数是 TIM_DMAPeriodElapsedHalfCplt 里面执行 HAL_TIM_PeriodElapsedHalfCpltCallback
     // 所以 HAL_TIM_PeriodElapsedHalfCpltCallback 才是半传输完成的回调函数
-    printf("HAL_TIM_PeriodElapsedHalfCpltCallback\r\n");
+    static uint8_t has_half_print = 0;
+    if (has_half_print == 0)
+    {
+      printf("HAL_TIM_PeriodElapsedHalfCpltCallback\r\n");
+      has_half_print = 1;
+    }
   }
 }
 
@@ -119,6 +129,7 @@ void HAL_DMA_XferCpltCallback(DMA_HandleTypeDef *hdma)
 {
   if (hdma == &hdma_tim3_ch1_trig)
   {
+
     printf("HAL_DMA_XferCpltCallback\r\n");
   }
 }
@@ -212,6 +223,8 @@ int main(void)
          (unsigned long)TIM3->CR1, (unsigned long)TIM3->CR2,
          (unsigned long)TIM3->DIER, (unsigned long)TIM3->SR,
          (unsigned long)TIM3->CNT, (unsigned long)TIM3->ARR);
+
+  
 
   printf("DMA started\r\n");
 
