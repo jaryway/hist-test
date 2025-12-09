@@ -165,33 +165,44 @@ int main(void)
 
   printf("System start\r\n");
 
-  // HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1); // 启动PWM输出
+  /* 替换你现有的 DMA 启动相关片段（在 MX_*Init() 调用之后） */
 
   static uint16_t dma_buffer[] = {288, 4608, 2304, 1152, 576, 288, 144};
   uint16_t length = sizeof(dma_buffer) / sizeof(dma_buffer[0]);
-  HAL_TIM_Base_Stop_DMA(&htim3);
-  HAL_TIM_Base_Start_DMA(&htim3, (uint32_t *)dma_buffer, length);
 
-  /* debug_dma_check.c - 放在 HAL_TIM_Base_Start_DMA 返回后用调试器查看 */
+  /* 1) 将 DMA 外设地址设为 TIM3->ARR（确保 PeriphInc = DISABLE 已在 tim.c 中设置） */
+  hdma_tim3_ch1_trig.Instance->CPAR = (uint32_t)(&(TIM3->ARR));
+
+  /* 2) 为了测试半传，使用 CIRCULAR 模式（如果 tim.c 把 Init.Mode 设置为 NORMAL，需要在这里重新 init） */
+  hdma_tim3_ch1_trig.Init.Mode = DMA_CIRCULAR;
+  if (HAL_DMA_Init(&hdma_tim3_ch1_trig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* 3) 确保链接到 UPDATE 槽（如果未链接） */
+  __HAL_LINKDMA(&htim3, hdma[TIM_DMA_ID_UPDATE], hdma_tim3_ch1_trig);
+
+  /* 4) 确保 NVIC 对应 IRQ 已启（MX_DMA_Init 通常已做，但重复一次无妨） */
+  HAL_NVIC_SetPriority(DMA1_Channel6_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel6_IRQn);
+
+  /* 5) 启动 TIM（必须，使 Update/ TRGO 实际产生）——使用 PWM Start 更保险 */
+  if (HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* 6) 启动 Base+DMA 并检查返回值 */
+  HAL_StatusTypeDef rc = HAL_TIM_Base_Start_DMA(&htim3, (uint32_t *)dma_buffer, length);
+  printf("HAL_TIM_Base_Start_DMA rc=%d\r\n", (int)rc);
+
+  /* 7) 读出关键寄存器用于现场诊断（在串口或调试器查看） */
   volatile uint32_t dbg_DMA_CCR = hdma_tim3_ch1_trig.Instance->CCR;
   volatile uint32_t dbg_DMA_CNDTR = hdma_tim3_ch1_trig.Instance->CNDTR;
   volatile uint32_t dbg_DMA_CPAR = hdma_tim3_ch1_trig.Instance->CPAR;
-  /* 在调试器里查看 dbg_DMA_* 的值：
-     - dbg_DMA_CNDTR 应等于你传入的长度
-     - dbg_DMA_CCR 的 HTIE/TCIE 位应为 1 (HTIE = 1<<2, TCIE = 1<<1 根据设备手册)
-     - dbg_DMA_CPAR 应等于 (uint32_t)&(TIM3->ARR)
-  */
-
-  if (htim3.hdma[TIM_DMA_ID_UPDATE] != &hdma_tim3_ch1_trig)
-  {
-    /* 链接未生效 */
-    printf("DMA link error\r\n");
-    while (1)
-    {
-    }
-  }
-
-  // __HAL_TIM_ENABLE_DMA(&htim3, TIM_DMA_UPDATE);
+  printf("DMA CCR=0x%08lx CNDTR=%lu CPAR=0x%08lx\r\n",
+         (unsigned long)dbg_DMA_CCR, (unsigned long)dbg_DMA_CNDTR, (unsigned long)dbg_DMA_CPAR);
 
   printf("DMA started\r\n");
 
