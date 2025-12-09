@@ -3,6 +3,7 @@
 #include <string.h>
 
 static const double TICK_HZ = 1000000.0; // 1MHz计数频率
+static uint64_t g_last_accum = 0;        // 记录上一个绝对CCR时间点
 // 频率到ARR的转换函数
 static uint32_t freq_to_arr(float freq_hz)
 {
@@ -107,13 +108,21 @@ static float generate_trapezoid_freq(uint32_t pulse_index)
    但这里返回 period_ticks = round(tick_hz / freq)
 */
 
- uint32_t generate_trapezoid_arr(uint32_t pulse_index)
+uint32_t generate_trapezoid_arr(uint32_t pulse_index)
 {
     float current_freq = generate_trapezoid_freq(pulse_index);
     return freq_to_arr(current_freq);
 }
+/* 新增：根据 pulse_index 生成下一个绝对 CCR（累加 period_ticks 到 g_last_accum） */
+uint32_t generate_trapezoid_ccr(uint32_t pulse_index)
+{
+    uint32_t period_ticks = generate_trapezoid_period_ticks(pulse_index);
+    g_last_accum += (uint64_t)period_ticks;
+    /* 返回低 32 位绝对时间点（写入 DMA buffer 时只取低16位） */
+    return (uint32_t)(g_last_accum & 0xFFFFFFFFUL);
+}
 
- uint32_t generate_trapezoid_period_ticks(uint32_t pulse_index)
+uint32_t generate_trapezoid_period_ticks(uint32_t pulse_index)
 {
     float current_freq = generate_trapezoid_freq(pulse_index);
     // 防止除以零或极小值
@@ -130,40 +139,42 @@ static float generate_trapezoid_freq(uint32_t pulse_index)
         ticks = 1;
     return ticks;
 }
-void fill_single_buffer(DMA_DoubleBuffer_t dma_doublebuffer, uint32_t start_idx, uint16_t count)
+void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx, uint16_t count)
 {
     uint16_t temp_buffer[BUFFER_SIZE];
-    uint16_t *buffer = dma_doublebuffer.active_buffer ? dma_doublebuffer.dma_buf0 : dma_doublebuffer.dma_buf1;
+    uint16_t *buffer = dma_doublebuffer->active_buffer
+                           ? dma_doublebuffer->dma_buf0
+                           : dma_doublebuffer->dma_buf1;
 
     for (uint16_t i = 0; i < count; i++)
     {
         uint32_t pulse_idx = start_idx + i;
-        buffer[i] = generate_trapezoid_period_ticks(pulse_idx);
+        buffer[i] = generate_trapezoid_ccr(pulse_idx);
     }
 
-    memcpy(buffer, temp_buffer, count * 4);
+    memcpy(buffer, temp_buffer, count * sizeof(uint16_t));
 }
-void fill_buffer(DMA_DoubleBuffer_t dma_doublebuffer)
+void fill_buffer(DMA_DoubleBuffer_t *dma_doublebuffer)
 {
-    uint32_t start_idx = dma_doublebuffer.pulses_filled;
+    uint32_t start_idx = dma_doublebuffer->pulses_filled;
     uint16_t fill_count = BUFFER_SIZE;
 
-    if (start_idx + fill_count > dma_doublebuffer.total_pulses)
+    if (start_idx + fill_count > dma_doublebuffer->total_pulses)
     {
-        fill_count = dma_doublebuffer.total_pulses - start_idx;
+        fill_count = dma_doublebuffer->total_pulses - start_idx;
     }
 
     if (fill_count > 0)
     {
         fill_single_buffer(dma_doublebuffer, start_idx, fill_count);
-        dma_doublebuffer.pulses_filled += fill_count; // 更新填充位置
+        dma_doublebuffer->pulses_filled += fill_count; // 更新填充位置
     }
 }
 
-void init_double_buffer(DMA_DoubleBuffer_t dma_doublebuffer)
+void init_double_buffer(DMA_DoubleBuffer_t *dma_doublebuffer)
 {
     fill_buffer(dma_doublebuffer);
 
-    dma_doublebuffer.active_buffer = 0;       // 从缓冲区1开始
-    dma_doublebuffer.next_fill_buffer = 0xFF; // 初始时不需要填充
+    dma_doublebuffer->active_buffer = 0;       // 从缓冲区1开始
+    dma_doublebuffer->next_fill_buffer = 0xFF; // 初始时不需要填充
 }

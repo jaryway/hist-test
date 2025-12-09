@@ -25,14 +25,16 @@ typedef struct
     volatile uint8_t next_fill_buffer; // 下一次要填充的缓冲区(填充缓冲区0，1填充缓冲区1，255表示已填充)
     volatile uint32_t pulses_sent;     // 已发送的脉冲数（更准确的命名）
     volatile uint32_t pulses_filled;   // 已填充的脉冲数
+    volatile uint16_t g_last_accum;    // 上一个绝对CCR时间点
 
 } DMA_DoubleBuffer_t;
 
-void fill_single_buffer(DMA_DoubleBuffer_t dma_doublebuffer, uint32_t start_idx, uint16_t count);
-void fill_buffer(DMA_DoubleBuffer_t dma_doublebuffer);
-void init_double_buffer(DMA_DoubleBuffer_t dma_doublebuffer);
+void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx, uint16_t count);
+void fill_buffer(DMA_DoubleBuffer_t *dma_doublebuffer);
+void init_double_buffer(DMA_DoubleBuffer_t *dma_doublebuffer);
 
 uint32_t generate_trapezoid_arr(uint32_t pulse_index);
+uint32_t generate_trapezoid_ccr(uint32_t pulse_index);
 uint32_t generate_trapezoid_period_ticks(uint32_t pulse_index);
 
 #endif /* __DMA_DUOBLEBUFFER_H */
