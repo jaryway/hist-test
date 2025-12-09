@@ -1,0 +1,1 @@
+int dma_probe_find_tim3_update_channel(void);

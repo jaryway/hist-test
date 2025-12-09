@@ -28,6 +28,7 @@
 #include "config.h"
 #include "stepper.h"
 #include "dma_duoblebuffer.h"
+#include "dma_channel_probe.h"
 #include <stdio.h>  // 添加此行以支持 sprintf
 #include <string.h> // 若使用 strlen，也应确保已包含
 /* USER CODE END Includes */
@@ -256,6 +257,7 @@ int main(void)
   /* 检查 htim3.hdma 指针是否指向你正在使用的 hdma 句柄 */
   printf("htim3.hdma[UPDATE] = %p, hdma_tim3_ch1_trig = %p\n",
          (void *)htim3.hdma[TIM_DMA_ID_UPDATE], (void *)&hdma_tim3_ch1_trig);
+  dma_probe_find_tim3_update_channel();
 
   printf("DMA started\r\n");
 
