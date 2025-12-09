@@ -200,14 +200,15 @@ int main(void)
   HAL_NVIC_EnableIRQ(DMA1_Channel6_IRQn);
 
   /* 5) 启动 TIM（必须，使 Update/ TRGO 实际产生）——使用 PWM Start 更保险 */
-  if (HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
+  // if (HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1) != HAL_OK)
+  // {
+  //   Error_Handler();
+  // }
 
   /* 6) 启动 Base+DMA 并检查返回值 */
-  HAL_StatusTypeDef rc = HAL_TIM_Base_Start_DMA(&htim3, (uint32_t *)dma_buffer, length);
-  printf("HAL_TIM_Base_Start_DMA rc=%d\r\n", (int)rc);
+  // HAL_StatusTypeDef rc = HAL_TIM_Base_Start_DMA(&htim3, (uint32_t *)dma_buffer, length);
+  // printf("HAL_TIM_Base_Start_DMA rc=%d\r\n", (int)rc);
+  dma_probe_find_tim3_update_channel();
 
   /* 7) 读出关键寄存器用于现场诊断（在串口或调试器查看） */
   volatile uint32_t dbg_DMA_CCR = hdma_tim3_ch1_trig.Instance->CCR;
@@ -257,7 +258,7 @@ int main(void)
   /* 检查 htim3.hdma 指针是否指向你正在使用的 hdma 句柄 */
   printf("htim3.hdma[UPDATE] = %p, hdma_tim3_ch1_trig = %p\n",
          (void *)htim3.hdma[TIM_DMA_ID_UPDATE], (void *)&hdma_tim3_ch1_trig);
-  dma_probe_find_tim3_update_channel();
+  
 
   printf("DMA started\r\n");
 
