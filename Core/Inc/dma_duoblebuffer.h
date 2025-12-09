@@ -32,4 +32,7 @@ void fill_single_buffer(DMA_DoubleBuffer_t dma_doublebuffer, uint32_t start_idx,
 void fill_buffer(DMA_DoubleBuffer_t dma_doublebuffer);
 void init_double_buffer(DMA_DoubleBuffer_t dma_doublebuffer);
 
+uint32_t generate_trapezoid_arr(uint32_t pulse_index);
+uint32_t generate_trapezoid_period_ticks(uint32_t pulse_index);
+
 #endif /* __DMA_DUOBLEBUFFER_H */
