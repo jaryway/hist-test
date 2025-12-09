@@ -41,7 +41,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define BUFFER_SIZE 256
+#define BUFFER_SIZE 512
 #define SYS_CLK_HZ 72000000.0f // 系统时钟72MHz
 
 /* USER CODE END PD */
@@ -55,7 +55,7 @@
 
 /* USER CODE BEGIN PV */
 
-DMA_DoubleBuffer_t dma_doublebuffer;
+DMA_DoubleBuffer_t dma_doublebuffer = {.total_pulses = 50000};
 extern DMA_HandleTypeDef hdma_tim3_ch1_trig;
 
 /* USER CODE END PV */
@@ -73,6 +73,8 @@ StepperTypeDef stepper86;
 uint32_t count = 0; // 中断计数器
 uint32_t half_count = 0;
 uint32_t full_count = 0;
+uint32_t oc_half_count = 0;
+uint32_t oc_full_count = 0;
 
 int _write(int file, char *ptr, int len)
 {
@@ -91,38 +93,102 @@ int _write(int file, char *ptr, int len)
   return len;
 }
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-  if (htim->Instance == TIM3)
-  {
-    full_count++;
-    // static uint8_t has_print = 0;
-    // if (has_print <= 10)
-    // {
-    //   printf("HAL_TIM_PeriodElapsedCallback\r\n");
-    //   has_print++;
-    // }
-
-    static uint16_t dma_buffer[] = {4608 * 2, 4608, 2304, 1152, 576, 288, 144};
-    uint16_t length = sizeof(dma_buffer) / sizeof(dma_buffer[0]);
-    // HAL_TIM_Base_Stop_DMA(&htim3);
-
-    HAL_TIM_Base_Start_DMA(&htim3, (uint32_t *)dma_buffer, length);
-  }
-}
 void HAL_TIM_PeriodElapsedHalfCpltCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM3)
   {
     half_count++;
-    // // 查看 的实现，它的回调函数是 TIM_DMAPeriodElapsedHalfCplt 里面执行 HAL_TIM_PeriodElapsedHalfCpltCallback
-    // // 所以 HAL_TIM_PeriodElapsedHalfCpltCallback 才是半传输完成的回调函数
-    // static uint8_t has_half_print = 0;
-    // if (has_half_print <= 10)
-    // {
-    //   printf("HAL_TIM_PeriodElapsedHalfCpltCallback\r\n");
-    //   has_half_print++;
-    // }
+    if (dma_doublebuffer.active_buffer == 0)
+    {
+      dma_doublebuffer.next_fill_buffer = 1;
+    }
+    else if (dma_doublebuffer.active_buffer == 1)
+    {
+      dma_doublebuffer.next_fill_buffer = 0;
+    }
+  }
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM3)
+  {
+    full_count++;
+    uint32_t temp = dma_doublebuffer.pulses_sent + BUFFER_SIZE;
+
+    // 判断脉冲是否发送完成，如果已经发送完成，停止DMA传输
+    if (temp >= dma_doublebuffer.total_pulses)
+    {
+      dma_doublebuffer.pulses_sent = dma_doublebuffer.total_pulses; // 重新修正发送位置
+      HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+      HAL_TIM_OC_Stop_DMA(&htim3, TIM_CHANNEL_1);
+      return;
+    }
+
+    dma_doublebuffer.pulses_sent = temp;
+    uint16_t *pData;
+    // 切换缓冲区
+    if (dma_doublebuffer.active_buffer == 0)
+    {
+      pData = dma_doublebuffer.dma_buf1;
+      dma_doublebuffer.active_buffer = 1;
+    }
+    else if (dma_doublebuffer.next_fill_buffer == 1)
+    {
+      pData = dma_doublebuffer.dma_buf0;
+      dma_doublebuffer.next_fill_buffer = 0;
+    }
+
+    HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)pData, BUFFER_SIZE);
+  }
+}
+void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM3)
+  {
+    oc_half_count++;
+    if (dma_doublebuffer.active_buffer == 0)
+    {
+      dma_doublebuffer.next_fill_buffer = 1;
+    }
+    else if (dma_doublebuffer.active_buffer == 1)
+    {
+      dma_doublebuffer.next_fill_buffer = 0;
+    }
+  }
+}
+
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM3)
+  {
+    oc_full_count++;
+    uint32_t temp = dma_doublebuffer.pulses_sent + BUFFER_SIZE;
+
+    // 判断脉冲是否发送完成，如果已经发送完成，停止DMA传输
+    if (temp >= dma_doublebuffer.total_pulses)
+    {
+      dma_doublebuffer.pulses_sent = dma_doublebuffer.total_pulses; // 重新修正发送位置
+      HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+      HAL_TIM_OC_Stop_DMA(&htim3, TIM_CHANNEL_1);
+      return;
+    }
+
+    dma_doublebuffer.pulses_sent = temp;
+    uint16_t *pData;
+    // 切换缓冲区
+    if (dma_doublebuffer.active_buffer == 0)
+    {
+      pData = dma_doublebuffer.dma_buf1;
+      dma_doublebuffer.active_buffer = 1;
+    }
+    else if (dma_doublebuffer.next_fill_buffer == 1)
+    {
+      pData = dma_doublebuffer.dma_buf0;
+      dma_doublebuffer.next_fill_buffer = 0;
+    }
+
+    HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)pData, BUFFER_SIZE);
   }
 }
 
@@ -171,10 +237,10 @@ int main(void)
 
   static uint16_t dma_buffer[] = {4608 * 2, 4608, 2304, 1152, 576, 288, 144};
   uint16_t length = sizeof(dma_buffer) / sizeof(dma_buffer[0]);
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 
-  /* 6) 启动 Base+DMA 并检查返回值 */
-  HAL_TIM_Base_Start_DMA(&htim3, (uint32_t *)dma_buffer, length);
+  HAL_TIM_OC_Stop_DMA(&htim3, TIM_CHANNEL_1);
+  HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_buffer, length);
 
   printf("DMA started\r\n");
 
@@ -187,8 +253,10 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    uint16_t arr = __HAL_TIM_GET_AUTORELOAD(&htim3);
-    printf("full_count: %lu, half_count: %lu,arr:%d\r\n", full_count, half_count, arr);
+    // uint16_t arr = __HAL_TIM_GET_AUTORELOAD(&htim3);
+    // printf("full_count: %lu, half_count: %lu,arr:%d\r\n", full_count, half_count, arr);
+    uint16_t ccr = __HAL_TIM_GET_COUNTER(&htim3);
+    printf("oc_half_count: %lu, oc_full_count: %lu,ccr:%d\r\n", oc_half_count, oc_full_count, ccr);
   }
   /* USER CODE END 3 */
 }

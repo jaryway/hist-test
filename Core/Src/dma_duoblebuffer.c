@@ -41,7 +41,7 @@ static uint32_t freq_to_arr(float freq_hz)
 
     return arr;
 }
-static uint32_t generate_trapezoid_arr(uint32_t pulse_index)
+static uint32_t generate_trapezoid_ccr(uint32_t pulse_index)
 {
     // 运动参数
     uint32_t total_pulses = 50000;
@@ -49,67 +49,72 @@ static uint32_t generate_trapezoid_arr(uint32_t pulse_index)
     uint32_t decel_pulses = 15000;
     uint32_t cruise_pulses = total_pulses - accel_pulses - decel_pulses;
 
-    // 频率参数（单位：Hz）
-    float start_freq = 1000.0f;                 // 起始频率 1KHz
-    float max_freq = 3000.0f / 60.0f * 5000.0f; // 最大频率 = 250KHz
-    float end_freq = 1000.0f;                   // 结束频率 1KHz
+    // // 频率参数（单位：Hz）
+    // float start_freq = 1000.0f;                 // 起始频率 1KHz
+    // float max_freq = 3000.0f / 60.0f * 5000.0f; // 最大频率 = 250KHz
+    // float end_freq = 1000.0f;                   // 结束频率 1KHz
 
-    // 验证参数
-    if (max_freq > 250000.0f)
-        max_freq = 250000.0f; // 限制最大频率
-    if (start_freq > max_freq)
-        start_freq = max_freq;
-    if (end_freq > max_freq)
-        end_freq = max_freq;
+    // // 验证参数
+    // if (max_freq > 250000.0f)
+    //     max_freq = 250000.0f; // 限制最大频率
+    // if (start_freq > max_freq)
+    //     start_freq = max_freq;
+    // if (end_freq > max_freq)
+    //     end_freq = max_freq;
 
-    float current_freq;
+    // float current_freq;
+    float current_ccr;
 
-    if (pulse_index < accel_pulses)
-    {
-        // 加速段：线性加速
-        float ratio = (float)pulse_index / accel_pulses;
-        // 使用线性插值
-        current_freq = start_freq + (max_freq - start_freq) * ratio;
+    // if (pulse_index < accel_pulses)
+    // {
+    //     // 加速段：线性加速
+    //     float ratio = (float)pulse_index / accel_pulses;
+    //     // 使用线性插值
+    //     current_freq = start_freq + (max_freq - start_freq) * ratio;
 
-        // 可选：使用S曲线加速更平滑
-        // current_freq = start_freq + (max_freq - start_freq) *
-        //               (1.0f - cosf(ratio * 3.14159f / 2.0f));
-    }
-    else if (pulse_index < accel_pulses + cruise_pulses)
-    {
-        // 匀速段
-        current_freq = max_freq;
-    }
-    else if (pulse_index < total_pulses)
-    {
-        // 减速段：线性减速
-        uint32_t decel_start = accel_pulses + cruise_pulses;
-        float ratio = (float)(pulse_index - decel_start) / decel_pulses;
-        // 从最大频率减速到结束频率
-        current_freq = max_freq - (max_freq - end_freq) * ratio;
+    //     // 可选：使用S曲线加速更平滑
+    //     // current_freq = start_freq + (max_freq - start_freq) *
+    //     //               (1.0f - cosf(ratio * 3.14159f / 2.0f));
+    // }
+    // else if (pulse_index < accel_pulses + cruise_pulses)
+    // {
+    //     // 匀速段
+    //     current_freq = max_freq;
+    // }
+    // else if (pulse_index < total_pulses)
+    // {
+    //     // 减速段：线性减速
+    //     uint32_t decel_start = accel_pulses + cruise_pulses;
+    //     float ratio = (float)(pulse_index - decel_start) / decel_pulses;
+    //     // 从最大频率减速到结束频率
+    //     current_freq = max_freq - (max_freq - end_freq) * ratio;
 
-        // 可选：使用S曲线减速
-        // current_freq = end_freq + (max_freq - end_freq) *
-        //               cosf(ratio * 3.14159f / 2.0f);
-    }
-    else
-    {
-        // 不应该执行到这里
-        current_freq = end_freq;
-    }
+    //     // 可选：使用S曲线减速
+    //     // current_freq = end_freq + (max_freq - end_freq) *
+    //     //               cosf(ratio * 3.14159f / 2.0f);
+    // }
+    // else
+    // {
+    //     // 不应该执行到这里
+    //     current_freq = end_freq;
+    // }
 
-    return freq_to_arr(current_freq);
+    // TODO:实现根据 pulse_index 计算 current_ccr 的逻辑
+    
+
+    // return freq_to_ccr(current_freq);
+    return current_ccr;
 }
 
 void fill_single_buffer(DMA_DoubleBuffer_t dma_doublebuffer, uint32_t start_idx, uint16_t count)
 {
-    uint32_t temp_buffer[BUFFER_SIZE];
-    uint32_t *buffer = dma_doublebuffer.active_buffer ? dma_doublebuffer.dma_buf0 : dma_doublebuffer.dma_buf1;
+    uint16_t temp_buffer[BUFFER_SIZE];
+    uint16_t *buffer = dma_doublebuffer.active_buffer ? dma_doublebuffer.dma_buf0 : dma_doublebuffer.dma_buf1;
 
     for (uint16_t i = 0; i < count; i++)
     {
         uint32_t pulse_idx = start_idx + i;
-        buffer[i] = generate_trapezoid_arr(pulse_idx);
+        buffer[i] = generate_trapezoid_ccr(pulse_idx);
     }
 
     memcpy(buffer, temp_buffer, count * 4);
