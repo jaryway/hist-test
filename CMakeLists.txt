@@ -50,7 +50,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     ${CMAKE_SOURCE_DIR}/Core/Src/stepper.c
     ${CMAKE_SOURCE_DIR}/Core/Src/dma_duoblebuffer.c
-    ${CMAKE_SOURCE_DIR}/Core/Src/main_diag.c
 )
 
 # Add include paths
