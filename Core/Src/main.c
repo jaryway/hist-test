@@ -103,11 +103,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     //   has_print++;
     // }
 
-    // static uint16_t dma_buffer[] = {4608 * 2, 4608, 2304, 1152, 576, 288, 144};
-    // uint16_t length = sizeof(dma_buffer) / sizeof(dma_buffer[0]);
-    HAL_TIM_Base_Stop_DMA(&htim3);
+    static uint16_t dma_buffer[] = {4608 * 2, 4608, 2304, 1152, 576, 288, 144};
+    uint16_t length = sizeof(dma_buffer) / sizeof(dma_buffer[0]);
+    // HAL_TIM_Base_Stop_DMA(&htim3);
 
-    // HAL_TIM_Base_Start_DMA(&htim3, (uint32_t *)dma_buffer, length);
+    HAL_TIM_Base_Start_DMA(&htim3, (uint32_t *)dma_buffer, length);
   }
 }
 void HAL_TIM_PeriodElapsedHalfCpltCallback(TIM_HandleTypeDef *htim)
@@ -185,10 +185,10 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-    HAL_Delay(1000);
-    printf(" half_count: %lu, full_count: %lu\r\n", half_count, full_count);
 
     /* USER CODE BEGIN 3 */
+    uint16_t arr = __HAL_TIM_GET_AUTORELOAD(&htim3);
+    printf("full_count: %lu, half_count: %lu,arr:%d\r\n", full_count, half_count, arr);
   }
   /* USER CODE END 3 */
 }
