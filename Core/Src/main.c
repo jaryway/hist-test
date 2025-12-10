@@ -98,7 +98,7 @@ void diag_print_timer_and_buffer(uint16_t *buf, int len)
   uint32_t timclk = HAL_RCC_GetPCLK1Freq();
   if ((RCC->CFGR & RCC_CFGR_PPRE1) != 0)
     timclk *= 2; // F1: APB1 prescaler !=1 => timerclk*2
-  uint32_t psc =htim3.Init.Prescaler;
+  uint32_t psc = htim3.Init.Prescaler;
   uint32_t arr = __HAL_TIM_GET_AUTORELOAD(&htim3);
   double tick_hz = (double)timclk / (double)(psc + 1U);
 
@@ -265,7 +265,7 @@ int main(void)
   uint16_t length = sizeof(dma_doublebuffer.dma_buf0) / sizeof(dma_doublebuffer.dma_buf0[0]);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 
-  init_double_buffer(&dma_doublebuffer, &htim3);
+  init_double_buffer(&dma_doublebuffer);
 
   HAL_TIM_OC_Stop_DMA(&htim3, TIM_CHANNEL_1);
   HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_doublebuffer.dma_buf0, length);

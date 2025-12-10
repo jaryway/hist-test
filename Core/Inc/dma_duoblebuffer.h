@@ -31,7 +31,7 @@ typedef struct
 
 void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx, uint16_t count);
 void fill_buffer(DMA_DoubleBuffer_t *dma_doublebuffer);
-void init_double_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, TIM_HandleTypeDef *htim);
+void init_double_buffer(DMA_DoubleBuffer_t *dma_doublebuffer);
 
 uint32_t generate_trapezoid_arr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index);
 uint32_t generate_trapezoid_ccr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index);

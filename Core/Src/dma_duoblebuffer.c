@@ -1,8 +1,14 @@
 
 #include "dma_duoblebuffer.h"
 #include <string.h>
+#include <stm32f1xx_hal_tim.h>
+
+extern TIM_HandleTypeDef htim3;
 
 static const double TICK_HZ = 1000000.0; // 1MHz计数频率
+/* runtime tick frequeng_tick_hzcy (ticks per second) - will be updated from TIM3 PSC at init */
+static double g_tick_hz = 1000000.0; /* default 1 MHz */
+
 // static uint64_t g_last_accum = 0;        // 记录上一个绝对CCR时间点
 // 频率到ARR的转换函数
 static uint32_t freq_to_arr(float freq_hz)
@@ -172,16 +178,43 @@ void fill_buffer(DMA_DoubleBuffer_t *dma_doublebuffer)
         dma_doublebuffer->pulses_filled += fill_count; // 更新填充位置
     }
 }
-
-void init_double_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, TIM_HandleTypeDef *htim)
+static void update_tick_hz_from_tim3(void)
 {
+    uint32_t timclk = HAL_RCC_GetPCLK1Freq();
+    if ((RCC->CFGR & RCC_CFGR_PPRE1) != 0)
+        timclk *= 2U; /* F1: timer clock doubles when APB1 prescaler != 1 */
+    uint32_t psc = (uint32_t)htim3.Init.Prescaler;
+    g_tick_hz = (double)timclk / (double)(psc + 1U);
+}
+void init_double_buffer(DMA_DoubleBuffer_t *dma_doublebuffer)
+{
+    // fill_buffer(dma_doublebuffer);
+
+    // uint32_t ccr = __HAL_TIM_GET_COUNTER(htim); // 读取CCR，防止优化
+    // dma_doublebuffer->g_last_accum += ccr;      // 防止优化
+
+    // dma_doublebuffer->active_buffer = 0;       // 从缓冲区1开始
+    // dma_doublebuffer->next_fill_buffer = 0xFF; // 初始时不需要填充
+
+    uint32_t timclk = HAL_RCC_GetPCLK1Freq();
+    if ((RCC->CFGR & RCC_CFGR_PPRE1) != 0)
+        timclk *= 2U;
+    uint16_t psc_1us = (uint16_t)((timclk / 1000000U) - 1U);
+    __HAL_TIM_SET_PRESCALER(&htim3, psc_1us);
+    __HAL_TIM_SET_AUTORELOAD(&htim3, 0xFFFFU);
+    HAL_TIM_Base_Start(&htim3);
+
+    update_tick_hz_from_tim3();
+
+    /* align accumulator to current counter to ensure CCR timings are relative to TIM CNT */
+    dma_doublebuffer->g_last_accum = (uint64_t)__HAL_TIM_GET_COUNTER(&htim3);
+    dma_doublebuffer->g_last_accum += 10ULL; /* small offset to avoid immediate match */
+
+    /* fill initial buffer - caller should update pulses_filled accordingly */
     fill_buffer(dma_doublebuffer);
 
-    uint32_t ccr = __HAL_TIM_GET_COUNTER(htim); // 读取CCR，防止优化
-    dma_doublebuffer->g_last_accum += ccr;      // 防止优化
-
-    dma_doublebuffer->active_buffer = 0;       // 从缓冲区1开始
-    dma_doublebuffer->next_fill_buffer = 0xFF; // 初始时不需要填充
+    dma_doublebuffer->active_buffer = 0;
+    dma_doublebuffer->next_fill_buffer = 0xFF;
 }
 void fill_buffer_in_background(DMA_DoubleBuffer_t *dma_doublebuffer)
 {
