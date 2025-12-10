@@ -157,7 +157,7 @@ void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx
     for (uint16_t i = 0; i < count; i++)
     {
         uint32_t pulse_idx = start_idx + i;
-        buffer[i] = generate_trapezoid_ccr(dma_doublebuffer, pulse_idx);
+        temp_buffer[i] = generate_trapezoid_ccr(dma_doublebuffer, pulse_idx);
     }
 
     memcpy(buffer, temp_buffer, count * sizeof(uint16_t));
@@ -188,21 +188,6 @@ static void update_tick_hz_from_tim3(void)
 }
 void init_double_buffer(DMA_DoubleBuffer_t *dma_doublebuffer)
 {
-    // fill_buffer(dma_doublebuffer);
-
-    // uint32_t ccr = __HAL_TIM_GET_COUNTER(htim); // 读取CCR，防止优化
-    // dma_doublebuffer->g_last_accum += ccr;      // 防止优化
-
-    // dma_doublebuffer->active_buffer = 0;       // 从缓冲区1开始
-    // dma_doublebuffer->next_fill_buffer = 0xFF; // 初始时不需要填充
-
-    uint32_t timclk = HAL_RCC_GetPCLK1Freq();
-    if ((RCC->CFGR & RCC_CFGR_PPRE1) != 0)
-        timclk *= 2U;
-    uint16_t psc_1us = (uint16_t)((timclk / 1000000U) - 1U);
-    __HAL_TIM_SET_PRESCALER(&htim3, psc_1us);
-    __HAL_TIM_SET_AUTORELOAD(&htim3, 0xFFFFU);
-    HAL_TIM_Base_Start(&htim3);
 
     update_tick_hz_from_tim3();
 

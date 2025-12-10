@@ -55,7 +55,7 @@
 
 /* USER CODE BEGIN PV */
 
-DMA_DoubleBuffer_t dma_doublebuffer = {.total_pulses = 50000};
+DMA_DoubleBuffer_t dma_doublebuffer = {.total_pulses = 5000000};
 extern DMA_HandleTypeDef hdma_tim3_ch1_trig;
 
 /* USER CODE END PV */
@@ -263,7 +263,15 @@ int main(void)
 
   // static uint16_t dma_buffer[] = {4608 * 2, 4608, 2304, 1152, 576, 288, 144};
   uint16_t length = sizeof(dma_doublebuffer.dma_buf0) / sizeof(dma_doublebuffer.dma_buf0[0]);
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+  // uint32_t timclk = HAL_RCC_GetPCLK1Freq();
+  // if ((RCC->CFGR & RCC_CFGR_PPRE1) != 0)
+  //   timclk *= 2U;                                          // F1 特性
+  // uint16_t psc_1us = (uint16_t)((timclk / 1000000U) - 1U); // e.g. 72MHz -> 71
+  // __HAL_TIM_SET_PRESCALER(&htim3, psc_1us);
+  // __HAL_TIM_SET_AUTORELOAD(&htim3, 0xFFFFU);
+  // __HAL_TIM_SET_COUNTER(&htim3, 0); // 可选：把计数器清零
+  // HAL_TIM_Base_Start(&htim3);       // 启动计数
+  // HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 
   init_double_buffer(&dma_doublebuffer);
 
