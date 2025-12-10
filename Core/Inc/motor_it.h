@@ -28,11 +28,11 @@ extern TIM_HandleTypeDef htim3;
 
 /*************************结构体定义段*****************************/
 
-typedef enum direction_t
+typedef enum MotorDirection_t
 {
-    DIR_CCW = 0, // 反转
-    DIR_CW = 1   // 正转
-} direction_t;   // 电机旋转方向定义
+    MOTOR_DIR_CCW = 0, // 反转
+    MOTOR_DIR_CW = 1   // 正转
+} MotorDirection_t;    // 电机旋转方向定义
 
 typedef enum MotorState_t
 {
@@ -61,8 +61,8 @@ typedef struct
     uint32_t tim_channel; // 定时器通道
     TIM_HandleTypeDef *monitor_htim;
 
-    uint8_t run_state; /*当前电机状态*/
-    direction_t dir;   /*旋转方向*/
+    uint8_t state;        /*当前电机状态*/
+    MotorDirection_t dir; /*旋转方向*/
 
     uint32_t total_pulses;
     uint32_t accel_pulses;
@@ -79,7 +79,7 @@ typedef struct
 void Motor_init(Motor_t *motor, uint8_t use_en);
 void Motor_attach(Motor_t *motor, GPIO_TypeDef *en_port, uint16_t en_pin, GPIO_TypeDef *step_port, uint16_t step_pin, GPIO_TypeDef *dir_port, uint16_t dir_pin);
 void Motor_attach_basic(Motor_t *motor, GPIO_TypeDef *step_port, uint16_t step_pin, GPIO_TypeDef *dir_port, uint16_t dir_pin);
-void Motor_attach_timer(Motor_t *motor, TIM_HandleTypeDef *htim, uint32_t tim_channel);
+void Motor_attach_timer(Motor_t *motor, TIM_HandleTypeDef *htim, uint32_t tim_channel, TIM_HandleTypeDef *monitor_htim);
 void Motor_set_steps_per_mm(Motor_t *motor, uint16_t pulses_per_mm);
 void Motor_set_reversed_dir(Motor_t *motor);
 

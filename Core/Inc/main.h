@@ -54,15 +54,14 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 
-void stepper_start_motion(void);
 
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define ENA_PIN_Pin GPIO_PIN_3
-#define ENA_PIN_GPIO_Port GPIOB
-#define DIR_PIN_Pin GPIO_PIN_5
-#define DIR_PIN_GPIO_Port GPIOB
+// #define ENA_PIN_Pin GPIO_PIN_3
+// #define ENA_PIN_GPIO_Port GPIOB
+// #define DIR_PIN_Pin GPIO_PIN_5
+// #define DIR_PIN_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

@@ -27,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include "config.h"
 #include "stepper.h"
+#include "motor_it.h"
 #include "dma_duoblebuffer.h"
 #include "dma_channel_probe.h"
 #include <stdio.h>  // 添加此行以支持 sprintf
@@ -69,6 +70,7 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 StepperTypeDef stepper86;
+Motor_t motor;
 
 uint32_t count = 0; // 中断计数器
 uint32_t half_count = 0;
@@ -281,20 +283,22 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     if (htim->Instance == TIM3)
     {
 
-        if (pulse_count >= 792000)
-        {
-            HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
-            HAL_TIM_Base_Stop_IT(&htim2);
-            HAL_TIM_Base_Stop_IT(&htim3);
-            return;
-        }
-        pulse_count++;
+        // if (pulse_count >= 792000)
+        // {
+        //     HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+        //     HAL_TIM_Base_Stop_IT(&htim2);
+        //     HAL_TIM_Base_Stop_IT(&htim3);
+        //     return;
+        // }
+        // pulse_count++;
+        Motor_count_pusle_in_it(&motor);
     }
     else if (htim->Instance == TIM2)
     {
         tim2_count++;
-        float freq = generate_trapezoid_freq(pulse_count);
-        update_pwm_freq(72000000U, freq, TIM_CHANNEL_1);
+        // float freq = generate_trapezoid_freq(pulse_count);
+        // update_pwm_freq(72000000U, freq, TIM_CHANNEL_1);
+        Motor_update_pwm_freq_in_it(&motor);
     }
 }
 // void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
@@ -403,36 +407,18 @@ int main(void)
 
     printf("System start\r\n");
 
-    // static uint16_t dma_buffer[] = {4608 * 2, 4608, 2304, 1152, 576, 288, 144};
-    //   uint16_t length = sizeof(dma_doublebuffer.dma_buf0) / sizeof(dma_doublebuffer.dma_buf0[0]);
-    // uint32_t timclk = HAL_RCC_GetPCLK1Freq();
-    // if ((RCC->CFGR & RCC_CFGR_PPRE1) != 0)
-    //   timclk *= 2U;                                          // F1 特性
-    // uint16_t psc_1us = (uint16_t)((timclk / 1000000U) - 1U); // e.g. 72MHz -> 71
-    // __HAL_TIM_SET_PRESCALER(&htim3, psc_1us);
-    // __HAL_TIM_SET_AUTORELOAD(&htim3, 0xFFFFU);
-    // __HAL_TIM_SET_COUNTER(&htim3, 0); // 可选：把计数器清零
-    // HAL_TIM_Base_Start(&htim3); // 启动计数
-    //   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+    // HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+    // HAL_TIM_Base_Start_IT(&htim2);
+    // HAL_TIM_Base_Start_IT(&htim3);
 
-    // init_double_buffer(&dma_doublebuffer);
+    Motor_init(&motor, 0);
+    Motor_attach(&motor, ENA_PORT, ENA_PIN, PUL_PORT, PUL_PIN, DIR_PORT, DIR_PIN);
+    Motor_attach_timer(&motor, &htim3, MOTOR86_PWM_TIMER_CHANNEL, &htim2);
+    Motor_set_steps_per_mm(&motor, (uint16_t)MOTOR86_STEPS_PER_MM);
 
-    //   HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_1);
+    // Motor_move(&motor, 792000, 125000, 125000, 3000);
 
-    // HAL_TIM_OC_Stop_DMA(&htim3, TIM_CHANNEL_1);
-    // HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_doublebuffer.dma_buf0, length);
-
-    printf("DMA started\r\n");
-    //   stepper_start_motion();
-
-    // int tim_count = __HAL_TIM_GET_COUNTER(&htim3);
-    /* 在当前计数值基础上设置定时器比较值 */
-    // __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, tim_count + 10);
-    // HAL_TIM_OC_Start_IT(&htim3, TIM_CHANNEL_1);
-    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-    HAL_TIM_Base_Start_IT(&htim2);
-    HAL_TIM_Base_Start_IT(&htim3);
-    // printf("pulse_count");
+    uint8_t dir = 0;
 
     /* USER CODE END 2 */
 
@@ -444,8 +430,14 @@ int main(void)
 
         /* USER CODE BEGIN 3 */
 
-        printf("pulse_count:%lu,tim2_count:%lu\r\n", pulse_count, tim2_count);
+        if (!Motor_is_running(&motor))
+        {
+            HAL_Delay(500);
+            Motor_move(&motor, dir == 0 ? 792000 : -792000, 125000, 125000, 3000);
+            dir = !dir;
+        }
 
+        printf("pulse_count:%lu,tim2_count:%lu\r\n", pulse_count, tim2_count);
         // 测试生成的ccr是否这个正确
 
         // uint32_t pulse_index = 0;

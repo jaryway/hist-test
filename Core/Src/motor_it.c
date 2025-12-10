@@ -48,34 +48,22 @@ static float generate_trapezoid_freq(Motor_t *motor)
     {
         // 加速段：线性加速
         float ratio = (float)pulse_index / accel_pulses;
-        // 使用线性插值
-        current_freq = start_freq + (max_freq - start_freq) * ratio;
-
-        // 可选：使用S曲线加速更平滑
-        // current_freq = start_freq + (max_freq - start_freq) *
-        //               (1.0f - cosf(ratio * 3.14159f / 2.0f));
+        current_freq = start_freq + (max_freq - start_freq) * ratio; // 使用线性插值
+        motor->state = MOTOR_ACCEL;
     }
     else if (pulse_index < accel_pulses + cruise_pulses)
     {
         // 匀速段
         current_freq = max_freq;
+        motor->state = MOTOR_RUN;
     }
     else if (pulse_index < total_pulses)
     {
         // 减速段：线性减速
         uint32_t decel_start = accel_pulses + cruise_pulses;
         float ratio = (float)(pulse_index - decel_start) / decel_pulses;
-        // 从最大频率减速到结束频率
-        current_freq = max_freq - (max_freq - end_freq) * ratio;
-
-        // 可选：使用S曲线减速
-        // current_freq = end_freq + (max_freq - end_freq) *
-        //               cosf(ratio * 3.14159f / 2.0f);
-    }
-    else
-    {
-        // 不应该执行到这里
-        current_freq = end_freq;
+        current_freq = max_freq - (max_freq - end_freq) * ratio; // 从最大频率减速到结束频率
+        motor->state = MOTOR_DECEL;
     }
 
     return current_freq;
@@ -84,7 +72,7 @@ static float generate_trapezoid_freq(Motor_t *motor)
 void Motor_init(Motor_t *motor, uint8_t use_en)
 {
     motor->use_en = use_en;
-    motor->timer_clock_hz = HAL_RCC_GetPCLK1Freq(); // 获取定时器时钟频率，假设使用APB1定时器
+    motor->timer_clock_hz = 72000000U; // 获取定时器时钟频率，假设使用APB1定时器
 }
 void Motor_attach(Motor_t *motor, GPIO_TypeDef *en_port, uint16_t en_pin, GPIO_TypeDef *step_port, uint16_t step_pin, GPIO_TypeDef *dir_port, uint16_t dir_pin)
 {
@@ -100,10 +88,11 @@ void Motor_attach_basic(Motor_t *motor, GPIO_TypeDef *step_port, uint16_t step_p
     motor->dir_port = dir_port;
     motor->dir_pin = dir_pin;
 }
-void Motor_attach_timer(Motor_t *motor, TIM_HandleTypeDef *htim, uint32_t tim_channel)
+void Motor_attach_timer(Motor_t *motor, TIM_HandleTypeDef *htim, uint32_t tim_channel, TIM_HandleTypeDef *monitor_htim)
 {
     motor->htim = htim;
     motor->tim_channel = tim_channel;
+    motor->monitor_htim = monitor_htim;
 }
 void Motor_set_steps_per_mm(Motor_t *motor, uint16_t pulses_per_mm)
 {
@@ -122,12 +111,12 @@ void Motor_move(Motor_t *motor, int32_t total_pulses, uint32_t accel_pulses, uin
     }
     else if (total_pulses < 0) // 逆时针
     {
-        motor->dir = DIR_CCW;
+        motor->dir = MOTOR_DIR_CCW;
         total_pulses = -total_pulses;
     }
     else // 顺时针
     {
-        motor->dir = DIR_CW;
+        motor->dir = MOTOR_DIR_CW;
     }
     // 输出电机方向
     Motor_set_dir(motor);
@@ -136,16 +125,19 @@ void Motor_move(Motor_t *motor, int32_t total_pulses, uint32_t accel_pulses, uin
     motor->accel_pulses = accel_pulses;
     motor->decel_pulses = decel_pulses;
     motor->max_rpm = max_rpm;
+    motor->state = MOTOR_ACCEL;
+    motor->pulse_count = 0;
 
-    HAL_TIM_PWM_Start(motor->htim, motor->tim_channel);
     HAL_TIM_Base_Start_IT(motor->monitor_htim);
     HAL_TIM_Base_Start_IT(motor->htim);
+    HAL_TIM_PWM_Start(motor->htim, motor->tim_channel);
 }
 void Motor_stop(Motor_t *motor)
 {
     HAL_TIM_PWM_Stop(motor->htim, motor->tim_channel);
     HAL_TIM_Base_Stop_IT(motor->monitor_htim);
     HAL_TIM_Base_Stop_IT(motor->htim);
+    motor->state = MOTOR_STOP;
 }
 void Motor_count_pusle_in_it(Motor_t *motor)
 {
@@ -203,5 +195,5 @@ uint8_t Motor_update_pwm_freq_in_it(Motor_t *motor)
 }
 uint8_t Motor_is_running(Motor_t *motor)
 {
-    return motor->run_state != MOTOR_STOP;
+    return motor->state != MOTOR_STOP;
 }

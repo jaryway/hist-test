@@ -67,7 +67,7 @@ extern "C" {
 #define PUL_PORT GPIOB
 // #define MOTOR86_STEPS_PER_MM      1280 // 导轨走1毫米电机转动的步数
 // #define MOTOR86_STEPS_PER_MM      460 // 导轨走1毫米电机转动的步数
-#define MOTOR86_STEPS_PER_MM      80 // 导轨走1毫米电机转动的步数
+#define MOTOR86_STEPS_PER_MM      480 // 导轨走1毫米电机转动的步数
 #define MOTOR86_PWM_TIMER         TIM3
 #define MOTOR86_PWM_TIMER_CHANNEL TIM_CHANNEL_1 // 86电机脉冲通道 TIM3 TIM_CHANNEL1
 
