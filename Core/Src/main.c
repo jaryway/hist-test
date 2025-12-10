@@ -92,6 +92,32 @@ int _write(int file, char *ptr, int len)
   }
   return len;
 }
+/* Diagnostic dump: print TIM3 PSC/ARR and sample DMA buffer deltas (first N entries) */
+void diag_print_timer_and_buffer(uint16_t *buf, int len)
+{
+  uint32_t timclk = HAL_RCC_GetPCLK1Freq();
+  if ((RCC->CFGR & RCC_CFGR_PPRE1) != 0)
+    timclk *= 2; // F1: APB1 prescaler !=1 => timerclk*2
+  uint32_t psc =htim3.Init.Prescaler;
+  uint32_t arr = __HAL_TIM_GET_AUTORELOAD(&htim3);
+  double tick_hz = (double)timclk / (double)(psc + 1U);
+
+  printf("TIM3: timclk=%lu PSC=%lu ARR=%lu tick_hz=%.0f (tick_us=%.3f)\n",
+         (unsigned long)timclk, (unsigned long)psc, (unsigned long)arr, tick_hz, 1e6 / tick_hz);
+
+  int N = (len < 16) ? len : 16;
+  printf("First %d buffer entries and deltas:\n", N);
+  for (int i = 0; i < N; ++i)
+  {
+    uint16_t v = buf[i];
+    uint16_t next = buf[(i + 1) % len];
+    uint16_t delta = (uint16_t)(next - v); // modulo 2^16
+    double delta_us = (double)delta * (1e6 / tick_hz);
+    double freq = 1.0 / (delta_us * 1e-6); // Hz for one delta period
+    printf("buf[%02d]=%5u  next=%5u  delta=%5u ticks  ~=%.3f us  freq=%.1f Hz\n",
+           i, (unsigned int)v, (unsigned int)next, (unsigned int)delta, delta_us, freq);
+  }
+}
 
 void HAL_TIM_PeriodElapsedHalfCpltCallback(TIM_HandleTypeDef *htim)
 {
@@ -271,8 +297,10 @@ int main(void)
     // uint16_t arr = __HAL_TIM_GET_AUTORELOAD(&htim3);
     // printf("full_count: %lu, half_count: %lu,arr:%d\r\n", full_count, half_count, arr);
 
-    uint16_t ccr = __HAL_TIM_GET_COUNTER(&htim3);
-    printf("oc_half_count: %lu, oc_full_count: %lu,ccr:%d\r\n", oc_half_count, oc_full_count, ccr);
+    // uint16_t ccr = __HAL_TIM_GET_COUNTER(&htim3);
+    // printf("oc_half_count: %lu, oc_full_count: %lu,ccr:%d\r\n", oc_half_count, oc_full_count, ccr);
+    diag_print_timer_and_buffer(dma_doublebuffer.dma_buf0, BUFFER_SIZE);
+
     fill_buffer_in_background(&dma_doublebuffer);
   }
   /* USER CODE END 3 */
