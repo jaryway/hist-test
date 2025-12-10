@@ -51,6 +51,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Core/Src/stepper.c
     ${CMAKE_SOURCE_DIR}/Core/Src/dma_duoblebuffer.c
     ${CMAKE_SOURCE_DIR}/Core/Src/dma_channel_probe.c
+    ${CMAKE_SOURCE_DIR}/Core/Src/motor_it.c
 )
 
 # Add include paths
