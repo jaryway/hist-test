@@ -235,12 +235,14 @@ int main(void)
 
   printf("System start\r\n");
 
-  static uint16_t dma_buffer[] = {4608 * 2, 4608, 2304, 1152, 576, 288, 144};
-  uint16_t length = sizeof(dma_buffer) / sizeof(dma_buffer[0]);
-  // HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+  // static uint16_t dma_buffer[] = {4608 * 2, 4608, 2304, 1152, 576, 288, 144};
+  uint16_t length = sizeof(dma_doublebuffer.dma_buf0) / sizeof(dma_doublebuffer.dma_buf0[0]);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 
-  // HAL_TIM_OC_Stop_DMA(&htim3, TIM_CHANNEL_1);
-  // HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_buffer, length);
+  init_double_buffer(&dma_doublebuffer, &htim3);
+
+  HAL_TIM_OC_Stop_DMA(&htim3, TIM_CHANNEL_1);
+  HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_doublebuffer.dma_buf0, length);
 
   printf("DMA started\r\n");
 
@@ -255,21 +257,23 @@ int main(void)
     /* USER CODE BEGIN 3 */
     // 测试生成的ccr是否这个正确
 
-    uint32_t pulse_index = 0;
-    while (pulse_index <= dma_doublebuffer.total_pulses)
-    {
-      uint32_t period_ticks = generate_trapezoid_period_ticks(pulse_index);
-      printf("pulse_index: %lu,period_ticks:%lu\r\n", pulse_index, period_ticks);
-      pulse_index++;
-    }
+    // uint32_t pulse_index = 0;
+    // while (pulse_index <= dma_doublebuffer.total_pulses)
+    // {
+    //   uint32_t period_ticks = generate_trapezoid_period_ticks(pulse_index);
+    //    uint32_t ccr = generate_trapezoid_ccr(pulse_index);
+    //   printf("pulse_index: %lu,ccr:%lu\r\n", pulse_index, ccr);
+    //   pulse_index++;
+    // }
 
-    HAL_Delay(10000);
+    // HAL_Delay(10000);
 
     // uint16_t arr = __HAL_TIM_GET_AUTORELOAD(&htim3);
     // printf("full_count: %lu, half_count: %lu,arr:%d\r\n", full_count, half_count, arr);
 
-    // uint16_t ccr = __HAL_TIM_GET_COUNTER(&htim3);
-    // printf("oc_half_count: %lu, oc_full_count: %lu,ccr:%d\r\n", oc_half_count, oc_full_count, ccr);
+    uint16_t ccr = __HAL_TIM_GET_COUNTER(&htim3);
+    printf("oc_half_count: %lu, oc_full_count: %lu,ccr:%d\r\n", oc_half_count, oc_full_count, ccr);
+    fill_buffer_in_background(&dma_doublebuffer);
   }
   /* USER CODE END 3 */
 }
