@@ -157,7 +157,9 @@ void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx
     for (uint16_t i = 0; i < count; i++)
     {
         uint32_t pulse_idx = start_idx + i;
-        temp_buffer[i] = generate_trapezoid_ccr(dma_doublebuffer, pulse_idx);
+        // generate_trapezoid_ccr(dma_doublebuffer, pulse_idx);
+        dma_doublebuffer->g_last_accum = dma_doublebuffer->g_last_accum + 1;
+        temp_buffer[i] = dma_doublebuffer->g_last_accum;
     }
 
     memcpy(buffer, temp_buffer, count * sizeof(uint16_t));
@@ -189,7 +191,7 @@ static void update_tick_hz_from_tim3(void)
 void init_double_buffer(DMA_DoubleBuffer_t *dma_doublebuffer)
 {
 
-    update_tick_hz_from_tim3();
+    // update_tick_hz_from_tim3();
 
     /* align accumulator to current counter to ensure CCR timings are relative to TIM CNT */
     dma_doublebuffer->g_last_accum = (uint64_t)__HAL_TIM_GET_COUNTER(&htim3);
