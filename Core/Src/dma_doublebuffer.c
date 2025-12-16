@@ -2,6 +2,7 @@
 #include "dma_doublebuffer.h"
 #include <string.h>
 #include <stm32f1xx_hal_tim.h>
+#include <stdio.h>
 
 extern TIM_HandleTypeDef htim3;
 
@@ -150,16 +151,17 @@ uint32_t generate_trapezoid_period_ticks(DMA_DoubleBuffer_t *dma_doublebuffer, u
 void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx, uint16_t count)
 {
     uint16_t temp_buffer[BUFFER_SIZE];
-    uint16_t *buffer = dma_doublebuffer->active_buffer
+    uint16_t *buffer = dma_doublebuffer->active_buffer == 0
                            ? dma_doublebuffer->dma_buf0
                            : dma_doublebuffer->dma_buf1;
+    // printf("active_buffer:%d\r\n", dma_doublebuffer->active_buffer);
 
     for (uint16_t i = 0; i < count; i++)
     {
         uint32_t pulse_idx = start_idx + i;
         // generate_trapezoid_ccr(dma_doublebuffer, pulse_idx);
         dma_doublebuffer->g_last_accum = dma_doublebuffer->g_last_accum + 1;
-        temp_buffer[i] = dma_doublebuffer->g_last_accum;
+        temp_buffer[i] = pulse_idx + 50; // dma_doublebuffer->g_last_accum;
     }
 
     memcpy(buffer, temp_buffer, count * sizeof(uint16_t));
@@ -194,7 +196,7 @@ void init_double_buffer(DMA_DoubleBuffer_t *dma_doublebuffer)
     // update_tick_hz_from_tim3();
 
     /* align accumulator to current counter to ensure CCR timings are relative to TIM CNT */
-    dma_doublebuffer->g_last_accum = (uint64_t)__HAL_TIM_GET_COUNTER(dma_doublebuffer->htim);
+    dma_doublebuffer->g_last_accum = (uint64_t)__HAL_TIM_GET_AUTORELOAD(dma_doublebuffer->htim);
     dma_doublebuffer->g_last_accum += 10ULL; /* small offset to avoid immediate match */
 
     /* fill initial buffer - caller should update pulses_filled accordingly */

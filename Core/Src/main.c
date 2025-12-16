@@ -27,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
 #include "dma_doublebuffer.h"
+#include <string.h>
 
 /* USER CODE END Includes */
 
@@ -50,7 +51,8 @@
 /* USER CODE BEGIN PV */
 DMA_DoubleBuffer_t dma_doublebuffer = {
     .htim = &htim1,
-    .total_pulses = 1600 //
+    .total_pulses = 1600, //
+    .active_buffer = 0,
 };
 
 /* USER CODE END PV */
@@ -68,7 +70,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM1)
   {
-    printf("HAL_TIM_PeriodElapsedCallback-TIM1\r\n");
+    uint32_t arr = __HAL_TIM_GET_AUTORELOAD(dma_doublebuffer.htim);
+    printf("HAL_TIM_PeriodElapsedCallback-tim1: %lu\r\n", (unsigned long)arr);
   }
   else if (htim->Instance == TIM2)
   {
@@ -81,12 +84,14 @@ void HAL_TIM_PeriodElapsedHalfCpltCallback(TIM_HandleTypeDef *htim)
   if (htim->Instance == TIM1)
   {
     //
-    printf("HAL_TIM_PeriodElapsedHalfCpltCallback-tim1\r\n");
+    uint32_t arr = __HAL_TIM_GET_AUTORELOAD(dma_doublebuffer.htim);
+    printf("HAL_TIM_PeriodElapsedHalfCpltCallback-tim1: %lu\r\n", (unsigned long)arr);
+    // printf("HAL_TIM_PeriodElapsedHalfCpltCallback-TIM1\r\n");
   }
   else if (htim->Instance == TIM2)
   {
     //
-    printf("HAL_TIM_PeriodElapsedHalfCpltCallback-tim2\r\n");
+    // printf("HAL_TIM_PeriodElapsedHalfCpltCallback-tim2\r\n");
   }
 }
 
@@ -154,10 +159,20 @@ int main(void)
 
   init_double_buffer(&dma_doublebuffer);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+
+  for (uint16_t i = 0; i < BUFFER_SIZE; ++i)
+  {
+    printf("dma_doublebuffer.dma_buf0[%u]=%u \r\n", i, dma_doublebuffer.dma_buf0[i]);
+  }
+
   uint16_t length = sizeof(dma_doublebuffer.dma_buf0) / sizeof(dma_doublebuffer.dma_buf0[0]);
   HAL_TIM_Base_Start_DMA(&htim1, (uint32_t *)dma_doublebuffer.dma_buf0, length);
 
-  printf("Starting DMA...\n");
+  // uint16_t dma_buffer[] = {288, 288, 288, 1152, 576, 288, 144};
+  // uint16_t length = sizeof(dma_buffer) / sizeof(dma_buffer[0]);
+  // HAL_TIM_Base_Start_DMA(&htim1, (uint32_t *)dma_buffer, length);
+
+  // printf("Starting DMA...\n");
 
   /* USER CODE END 2 */
 
@@ -168,6 +183,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    // HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+    // HAL_Delay(500);
   }
   /* USER CODE END 3 */
 }

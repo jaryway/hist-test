@@ -5,7 +5,7 @@
 #include "stm32f1xx_hal.h"
 
 // ========== 配置参数 ==========
-#define BUFFER_SIZE 512        // 每个缓冲区256个脉冲
+#define BUFFER_SIZE 24        // 每个缓冲区256个脉冲
 #define MIN_CCR_VALUE 10       // 最小CCR值（对应最大频率）
 #define MAX_CCR_VALUE 60000    // 最大CCR值（对应最小频率）
 #define SYS_CLK_HZ 72000000.0f // 系统时钟72MHz
