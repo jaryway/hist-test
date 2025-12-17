@@ -202,6 +202,14 @@ void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
 {
   printf("HAL_TIM_PWM_PulseFinishedHalfCpltCallback\r\n");
 }
+void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM3)
+  {
+    printf("HAL_TIM_OC_DelayElapsedCallback-tim3\r\n");
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, __HAL_TIM_GET_COUNTER(&htim3) + 100);
+  }
+}
 int _write(int file, char *ptr, int len)
 {
   (void)file;
@@ -280,6 +288,8 @@ int main(void)
   // HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
   // HAL_TIM_Base_Start_DMA(&htim1, (uint32_t *)dma_doublebuffer.dma_buffer, length);
 
+  HAL_GPIO_WritePin(ENA_GPIO_Port, ENA_Pin, GPIO_PIN_RESET);
+
   init_double_buffer(&dma_doublebuffer_oc);
 
   uint16_t length = sizeof(dma_doublebuffer_oc.dma_buffer) / sizeof(dma_doublebuffer_oc.dma_buffer[0]);
@@ -289,8 +299,9 @@ int main(void)
     uint32_t arr = generate_trapezoid_ccr(&dma_doublebuffer_oc, i);
     printf("pulse_index:%03lu, ccr: %lu\r\n", i, arr);
   }
-  // HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_1);
-  HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_doublebuffer_oc.dma_buffer, length);
+  __HAL_TIM_SET_COUNTER(&htim3, 0);
+  HAL_TIM_OC_Start_IT(&htim3, TIM_CHANNEL_1);
+  // HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_doublebuffer_oc.dma_buffer, length);
 
   /* USER CODE END 2 */
 
@@ -302,6 +313,10 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     // HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+
+    // __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, __HAL_TIM_GET_COUNTER(&htim3) + 100);
+
+    printf("cnt: %lu,ccr: %lu\r\n", __HAL_TIM_GET_COUNTER(&htim3), __HAL_TIM_GET_COMPARE(&htim3, TIM_CHANNEL_1));
 
     if (half_count_changed)
     {
