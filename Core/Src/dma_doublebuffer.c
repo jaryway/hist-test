@@ -8,7 +8,7 @@ extern TIM_HandleTypeDef htim3;
 
 static const double TICK_HZ = 1000000.0; // 1MHz计数频率
 /* runtime tick frequeng_tick_hzcy (ticks per second) - will be updated from TIM3 PSC at init */
-static double g_tick_hz = 1000000.0; /* default 1 MHz */
+// static double g_tick_hz = 1000000.0; /* default 1 MHz */
 
 // static uint64_t g_last_accum = 0;        // 记录上一个绝对CCR时间点
 // 频率到ARR的转换函数
@@ -110,13 +110,14 @@ uint32_t generate_trapezoid_arr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t p
 
 uint32_t generate_trapezoid_ccr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index)
 {
+    // 假设 PSC =0, ARR = 65535
     float current_freq = generate_trapezoid_freq(dma_doublebuffer, pulse_index);
     // 防止除以零或极小值
     if (current_freq <= 1e-6f)
         current_freq = 1.0f;
 
     // period in seconds = 1 / freq
-    double period_sec = 1.0 / (double)current_freq;
+    double period_sec = 1.0 / (double)current_freq; // 得到当前频率下的时间间隔
 
     // convert to ticks
     uint32_t period_ticks = (uint32_t)(period_sec * TICK_HZ + 0.5);

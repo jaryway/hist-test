@@ -5,13 +5,14 @@
 #include "stm32f1xx_hal.h"
 
 // ========== 配置参数 ==========
-#define BUFFER_SIZE 96         // 每个缓冲区256个脉冲
-#define MIN_CCR_VALUE 10       // 最小CCR值（对应最大频率）
-#define MAX_CCR_VALUE 65536    // 最大CCR值（对应最小频率）
-#define MAX_ARR_VALUE 65536    // 最大ARR值（对应最大频率）
-#define MIN_ARR_VALUE 288      // 最小ARR值（对应最小频率）
-#define SYS_CLK_HZ 72000000.0f // 系统时钟72MHz PSC=0 的情况下
-#define MIN_START_FREQ 100     // 最小启动频率100Hz
+#define BUFFER_SIZE 256                    // 每个缓冲区256个脉冲
+#define CLK_PSC 1.0f                       // 时钟预分频数
+#define HAED_CLK_HZ 72000000.0f            // 硬件时钟频率
+#define SYS_CLK_HZ (HAED_CLK_HZ / CLK_PSC) // 时钟频率
+#define MIN_CCR_VALUE 10                   // 最小CCR值（对应最大频率）
+#define MAX_CCR_VALUE 65536                // 最大CCR值（对应最小频率）
+#define MAX_ARR_VALUE 65536                // 最大ARR值（对应最大频率）
+#define MIN_ARR_VALUE 288                  // 最小ARR值（对应最小频率）
 
 // ========== 数据结构 ==========
 
