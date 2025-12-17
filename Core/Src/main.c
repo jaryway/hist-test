@@ -64,11 +64,11 @@ DMA_DoubleBuffer_t dma_doublebuffer_oc = {
     .mode = OC_CCR,
     .htim = &htim3,
     .tim_channel = TIM_CHANNEL_1,
-    .total_pulses = 150 * 3, //
-    .accel_pulses = 150,
-    .decel_pulses = 150,
-    .rpm = 3000,
-    .pulses_per_rev = 5000,
+    .total_pulses = 1500 * 3, //
+    .accel_pulses = 1500,
+    .decel_pulses = 1500,
+    .rpm = 4000,
+    .pulses_per_rev = 200,
     .active_buffer = 0,
 };
 
@@ -195,19 +195,41 @@ void HAL_TIM_PeriodElapsedHalfCpltCallback(TIM_HandleTypeDef *htim)
 
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
-  printf("HAL_TIM_PWM_PulseFinishedCallback\r\n");
+  if (htim->Instance == TIM3)
+  {
+    finish_count_oc++;
+    printf("HAL_TIM_PWM_PulseFinishedCallback\r\n");
+  }
 }
 
 void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
 {
-  printf("HAL_TIM_PWM_PulseFinishedHalfCpltCallback\r\n");
+  if (htim->Instance == TIM3)
+  {
+    half_count_oc++;
+    half_count_changed = 1;
+    // printf("HAL_TIM_PWM_PulseFinishedHalfCpltCallback\r\n");
+
+    if (check_pulse_finished(htim, &dma_doublebuffer_oc))
+      return;
+
+    // 切换缓冲区
+    if (dma_doublebuffer_oc.active_buffer == 0)
+    {
+      dma_doublebuffer_oc.active_buffer = 1;
+    }
+    else if (dma_doublebuffer_oc.active_buffer == 1)
+    {
+      dma_doublebuffer_oc.active_buffer = 0;
+    }
+  }
 }
 void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM3)
   {
-    printf("HAL_TIM_OC_DelayElapsedCallback-tim3\r\n");
-    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, __HAL_TIM_GET_COUNTER(&htim3) + 100);
+    // printf("HAL_TIM_OC_DelayElapsedCallback-tim3\r\n");
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, __HAL_TIM_GET_COUNTER(&htim3) + 6000);
   }
 }
 int _write(int file, char *ptr, int len)
@@ -266,7 +288,6 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
-
   /* USER CODE BEGIN 2 */
 
   __enable_irq();
@@ -288,20 +309,22 @@ int main(void)
   // HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
   // HAL_TIM_Base_Start_DMA(&htim1, (uint32_t *)dma_doublebuffer.dma_buffer, length);
 
-  HAL_GPIO_WritePin(ENA_GPIO_Port, ENA_Pin, GPIO_PIN_RESET);
+  // HAL_GPIO_WritePin(ENA_GPIO_Port, ENA_Pin, GPIO_PIN_RESET);
 
   init_double_buffer(&dma_doublebuffer_oc);
 
   uint16_t length = sizeof(dma_doublebuffer_oc.dma_buffer) / sizeof(dma_doublebuffer_oc.dma_buffer[0]);
   printf("length=%u ,pulses_filled:%lu\r\n", length, dma_doublebuffer_oc.pulses_filled);
-  for (uint32_t i = 0; i <= dma_doublebuffer_oc.total_pulses; i++)
-  {
-    uint32_t arr = generate_trapezoid_ccr(&dma_doublebuffer_oc, i);
-    printf("pulse_index:%03lu, ccr: %lu\r\n", i, arr);
-  }
-  __HAL_TIM_SET_COUNTER(&htim3, 0);
-  HAL_TIM_OC_Start_IT(&htim3, TIM_CHANNEL_1);
-  // HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_doublebuffer_oc.dma_buffer, length);
+  // for (uint32_t i = 0; i <= dma_doublebuffer_oc.total_pulses; i++)
+  // {
+  //   uint32_t arr = generate_trapezoid_ccr(&dma_doublebuffer_oc, i);
+  //   printf("pulse_index:%03lu, ccr: %lu\r\n", i, arr);
+  // }
+  
+  // HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_1);
+  // HAL_TIM_OC_Start_IT(&htim3, TIM_CHANNEL_1);
+  HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_doublebuffer_oc.dma_buffer, length);
+  // printf("HAL_TIM_OC_Start_IT\r\n");
 
   /* USER CODE END 2 */
 
@@ -314,9 +337,12 @@ int main(void)
     /* USER CODE BEGIN 3 */
     // HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
 
-    // __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, __HAL_TIM_GET_COUNTER(&htim3) + 100);
+    // __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, __HAL_TIM_GET_COUNTER(&htim3) + 10);
 
-    printf("cnt: %lu,ccr: %lu\r\n", __HAL_TIM_GET_COUNTER(&htim3), __HAL_TIM_GET_COMPARE(&htim3, TIM_CHANNEL_1));
+    // printf("cnt: %lu,ccr: %lu, ccr3: %lu\r\n",
+    //        __HAL_TIM_GET_COUNTER(&htim3),
+    //        __HAL_TIM_GET_COMPARE(&htim3, TIM_CHANNEL_1), //
+    //        htim3.Instance->CCR3);
 
     if (half_count_changed)
     {
