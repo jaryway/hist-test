@@ -64,11 +64,11 @@ DMA_DoubleBuffer_t dma_doublebuffer_oc = {
     .mode = OC_CCR,
     .htim = &htim3,
     .tim_channel = TIM_CHANNEL_1,
-    .total_pulses = 1500 * 3, //
-    .accel_pulses = 1500,
-    .decel_pulses = 1500,
-    .rpm = 4000,
-    .pulses_per_rev = 200,
+    .total_pulses = 150000 * 3, //
+    .accel_pulses = 15000,
+    .decel_pulses = 15000,
+    .rpm = 100,
+    .pulses_per_rev = 6400,
     .active_buffer = 0,
 };
 
@@ -199,6 +199,9 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
   {
     finish_count_oc++;
     printf("HAL_TIM_PWM_PulseFinishedCallback\r\n");
+    // finish_count++;
+    if (check_pulse_finished(htim, &dma_doublebuffer_oc))
+      return;
   }
 }
 
@@ -209,6 +212,10 @@ void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
     half_count_oc++;
     half_count_changed = 1;
     // printf("HAL_TIM_PWM_PulseFinishedHalfCpltCallback\r\n");
+    // printf("HAL_TIM_PWM_PulseFinishedHalfCpltCallback-1\r\n");
+    // printf("HAL_TIM_PWM_PulseFinishedHalfCpltCallback-2\r\n");
+    // printf("HAL_TIM_PWM_PulseFinishedHalfCpltCallback-3\r\n");
+    // printf("HAL_TIM_PWM_PulseFinishedHalfCpltCallback-4\r\n");
 
     if (check_pulse_finished(htim, &dma_doublebuffer_oc))
       return;
@@ -229,7 +236,7 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
   if (htim->Instance == TIM3)
   {
     // printf("HAL_TIM_OC_DelayElapsedCallback-tim3\r\n");
-    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, __HAL_TIM_GET_COUNTER(&htim3) + 6000);
+    // __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, __HAL_TIM_GET_COUNTER(&htim3) + 6000);
   }
 }
 int _write(int file, char *ptr, int len)
@@ -320,7 +327,7 @@ int main(void)
   //   uint32_t arr = generate_trapezoid_ccr(&dma_doublebuffer_oc, i);
   //   printf("pulse_index:%03lu, ccr: %lu\r\n", i, arr);
   // }
-  
+
   // HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_1);
   // HAL_TIM_OC_Start_IT(&htim3, TIM_CHANNEL_1);
   HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_doublebuffer_oc.dma_buffer, length);
@@ -357,6 +364,7 @@ int main(void)
 
   // }
   fill_buffer_in_background(&dma_doublebuffer);
+  fill_buffer_in_background(&dma_doublebuffer_oc);
   /* USER CODE END 3 */
 }
 

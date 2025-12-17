@@ -148,7 +148,11 @@ void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx
         }
         else
         {
-            temp_buffer[i] = generate_trapezoid_ccr(dma_doublebuffer, pulse_idx);
+
+            uint32_t ccr = dma_doublebuffer->g_last_accum + 400;
+            dma_doublebuffer->g_last_accum = ccr;
+            // printf("oc_ccr_pulse_idx:%lu,temp_buffer[%u]:%lu\r\n", pulse_idx, i, ccr);
+            temp_buffer[i] = ccr; //generate_trapezoid_ccr(dma_doublebuffer, pulse_idx);
         }
     }
 
