@@ -136,6 +136,13 @@ void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx
     uint16_t temp_buffer[count];
     uint16_t *buffer = dma_doublebuffer->dma_buffer;
 
+    // if (dma_doublebuffer->mode == OC_CCR)
+    // {
+    //     uint32_t cnt = __HAL_TIM_GET_COUNTER(dma_doublebuffer->htim);
+    //     const uint32_t margin_ticks = 1;
+    //     dma_doublebuffer->g_last_accum = (uint64_t)cnt + margin_ticks;
+    // }
+
     for (uint16_t i = 0; i < count; i++)
     {
         uint32_t pulse_idx = start_idx + i;
@@ -149,23 +156,23 @@ void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx
         else
         {
 
-            uint32_t ccr = dma_doublebuffer->g_last_accum + 4000;
-            dma_doublebuffer->g_last_accum = ccr;
+            uint32_t ccr32 = dma_doublebuffer->g_last_accum + 40;
+            dma_doublebuffer->g_last_accum = ccr32;
             // printf("oc_ccr_pulse_idx:%lu,temp0_buffer[%u]:%lu\r\n", pulse_idx, i, ccr);
-            temp_buffer[i] = ccr;
+            temp_buffer[i] = (uint16_t)(ccr32 & 0xFFFF);
             // temp_buffer[i] = generate_trapezoid_ccr(dma_doublebuffer, pulse_idx);
         }
     }
 
-    if (dma_doublebuffer->active_buffer == 0)
+    if (dma_doublebuffer->next_fill_buffer == 0)
     {
         // 填充前半区
         memcpy(buffer, temp_buffer, count * sizeof(uint16_t));
     }
-    else
+    else if (dma_doublebuffer->next_fill_buffer == 1)
     {
         // 填充后半区
-        memcpy(&buffer[BUFFER_SIZE / 2], temp_buffer, count * sizeof(uint16_t));
+        memcpy(&buffer[count], temp_buffer, count * sizeof(uint16_t));
     }
 }
 void fill_buffer(DMA_DoubleBuffer_t *dma_doublebuffer)
@@ -183,17 +190,18 @@ void fill_buffer(DMA_DoubleBuffer_t *dma_doublebuffer)
         fill_single_buffer(dma_doublebuffer, start_idx);
         dma_doublebuffer->pulses_filled += fill_count; // 更新填充位置
     }
+    dma_doublebuffer->fill_count++;
 }
 
 void init_double_buffer(DMA_DoubleBuffer_t *dma_doublebuffer)
 {
     // update_tick_hz_from_tim3();
     // 使用 OC + CCR 模式时，初始化 last_accum
-    if (dma_doublebuffer->mode == 1)
+    if (dma_doublebuffer->mode == OC_CCR)
     {
         /* align accumulator to current counter to ensure CCR timings are relative to TIM CNT */
         dma_doublebuffer->g_last_accum = (uint64_t)__HAL_TIM_GET_COUNTER(dma_doublebuffer->htim);
-        dma_doublebuffer->g_last_accum += 100ULL; /* small offset to avoid immediate match */
+        dma_doublebuffer->g_last_accum += 2000ULL; /* small offset to avoid immediate match */
     }
     else
     {
@@ -201,16 +209,21 @@ void init_double_buffer(DMA_DoubleBuffer_t *dma_doublebuffer)
 
     /* fill initial buffer - caller should update pulses_filled accordingly */
     /* 初始化时，两个缓冲区都填充数据 */
-    dma_doublebuffer->active_buffer = 0;
+    // dma_doublebuffer->active_buffer = 0;
+    dma_doublebuffer->next_fill_buffer = 0;
     fill_buffer(dma_doublebuffer);
-    dma_doublebuffer->active_buffer = 1;
+    // dma_doublebuffer->active_buffer = 1;
+    dma_doublebuffer->next_fill_buffer = 1;
     fill_buffer(dma_doublebuffer);
 
     dma_doublebuffer->active_buffer = 0;
+    dma_doublebuffer->fill_count = 0;
+    dma_doublebuffer->fill_buffer_in_background_count = 0;
     dma_doublebuffer->next_fill_buffer = 0xFF;
 }
 void fill_buffer_in_background(DMA_DoubleBuffer_t *dma_doublebuffer)
 {
+    dma_doublebuffer->fill_buffer_in_background_count++;
     if (dma_doublebuffer->next_fill_buffer == 0xFF)
         return;
 

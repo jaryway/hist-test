@@ -5,7 +5,7 @@
 #include "stm32f1xx_hal.h"
 
 // ========== 配置参数 ==========
-#define BUFFER_SIZE 512                    // 每个缓冲区256个脉冲
+#define BUFFER_SIZE 256                    // 每个缓冲区256个脉冲
 #define CLK_PSC 1.0f                       // 时钟预分频数
 #define HAED_CLK_HZ 72000000.0f            // 硬件时钟频率
 #define SYS_CLK_HZ (HAED_CLK_HZ / CLK_PSC) // 时钟频率
@@ -38,12 +38,15 @@ typedef struct
     // uint32_t *dma_buf1;       // DMA缓冲区1
     // uint16_t dma_buf0[BUFFER_SIZE];       // DMA缓冲区0
     // uint16_t dma_buf1[BUFFER_SIZE];       // DMA缓冲区1
-    uint16_t dma_buffer[BUFFER_SIZE];  // DMA缓冲区
-    volatile uint8_t active_buffer;    // 当前活动缓冲区（0或1）
+    uint16_t dma_buffer[BUFFER_SIZE]; // DMA缓冲区
+    volatile uint8_t active_buffer;   // 当前活动缓冲区（0或1）
     volatile uint8_t next_fill_buffer; // 下一次要填充的缓冲区(0填充前半区，1填充后半区，255表示已填充)
-    volatile uint32_t pulses_sent;     // 已发送的脉冲数
-    volatile uint32_t pulses_filled;   // 已填充的脉冲数
-    volatile uint64_t g_last_accum;    // 上一个绝对CCR时间点
+    // volatile uint8_t need_fill_buffer; // 是否需要填充缓冲区
+    volatile uint32_t pulses_sent;   // 已发送的脉冲数
+    volatile uint32_t pulses_filled; // 已填充的脉冲数
+    volatile uint64_t g_last_accum;  // 上一个绝对CCR时间点
+    volatile uint32_t fill_count;
+    volatile uint32_t fill_buffer_in_background_count;
 
 } DMA_DoubleBuffer_t;
 

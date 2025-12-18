@@ -58,18 +58,18 @@ DMA_DoubleBuffer_t dma_doublebuffer = {
     .decel_pulses = 150,
     .rpm = 3000,
     .pulses_per_rev = 5000,
-    .active_buffer = 0,
+    // .active_buffer = 0,
 };
 DMA_DoubleBuffer_t dma_doublebuffer_oc = {
     .mode = OC_CCR,
     .htim = &htim3,
     .tim_channel = TIM_CHANNEL_1,
-    .total_pulses = 150000 * 3, //
-    .accel_pulses = 150000,
-    .decel_pulses = 150000,
+    .total_pulses = 15000 * 3, //
+    .accel_pulses = 15000,
+    .decel_pulses = 15000,
     .rpm = 10,
     .pulses_per_rev = 1600,
-    .active_buffer = 0,
+    // .active_buffer = 0,
 };
 
 static uint32_t half_count = 0;
@@ -115,6 +115,20 @@ uint8_t check_pulse_finished(TIM_HandleTypeDef *htim, DMA_DoubleBuffer_t *dma_do
 
   dma_doublebuffer->pulses_sent = temp;
   return 0;
+}
+
+void switch_buffer(DMA_DoubleBuffer_t *dma_doublebuffer)
+{
+  if (dma_doublebuffer->active_buffer == 0)
+  {
+    dma_doublebuffer->active_buffer = 1;
+    dma_doublebuffer->next_fill_buffer = 1;
+  }
+  else if (dma_doublebuffer->active_buffer == 1)
+  {
+    dma_doublebuffer->active_buffer = 0;
+    dma_doublebuffer->next_fill_buffer = 0;
+  }
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
@@ -172,14 +186,7 @@ void HAL_TIM_PeriodElapsedHalfCpltCallback(TIM_HandleTypeDef *htim)
       return;
 
     // 切换缓冲区
-    if (dma_doublebuffer.active_buffer == 0)
-    {
-      dma_doublebuffer.active_buffer = 1;
-    }
-    else if (dma_doublebuffer.active_buffer == 1)
-    {
-      dma_doublebuffer.active_buffer = 0;
-    }
+    switch_buffer(&dma_doublebuffer);
   }
   else if (htim->Instance == TIM2)
   {
@@ -202,7 +209,7 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
     // printf("HAL_TIM_PWM_PulseFinishedCallback\r\n");
     // finish_count++;
     // if (check_pulse_finished(htim, &dma_doublebuffer_oc))
-      return;
+    return;
   }
 }
 
@@ -222,14 +229,7 @@ void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
       return;
 
     // 切换缓冲区
-    if (dma_doublebuffer_oc.active_buffer == 0)
-    {
-      dma_doublebuffer_oc.active_buffer = 1;
-    }
-    else if (dma_doublebuffer_oc.active_buffer == 1)
-    {
-      dma_doublebuffer_oc.active_buffer = 0;
-    }
+    switch_buffer(&dma_doublebuffer_oc);
   }
 }
 void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
@@ -356,16 +356,20 @@ int main(void)
     if (half_count_changed)
     {
       // HAL_Delay(500);
-      // if (HAL_GetTick() - last_time >= 1000)
-      // {
-      half_count_changed = 0;
-      // printf("half_count: %lu, finish_count:%lu,half_count_oc: %lu, finish_count_oc:%lu\r\n",
-      //        half_count, finish_count, half_count_oc, finish_count_oc);
-      last_time = HAL_GetTick();
+      if (HAL_GetTick() - last_time >= 1000)
+      {
+        half_count_changed = 0;
+        printf("half_count: %lu, finish_count:%lu,half_count_oc: %lu, finish_count_oc:%lu\r\n",
+               half_count, finish_count, half_count_oc, finish_count_oc);
+        printf("fill_count: %lu, fill_buffer_in_background_count:%lu\r\n",
+               dma_doublebuffer_oc.fill_count, dma_doublebuffer_oc.fill_buffer_in_background_count);
+        last_time = HAL_GetTick();
+      }
     }
 
-    fill_buffer_in_background(&dma_doublebuffer);
+    // fill_buffer_in_background(&dma_doublebuffer);
     fill_buffer_in_background(&dma_doublebuffer_oc);
+    // printf("fill_count: %lu\r\n", dma_doublebuffer_oc.fill_count);
   }
 
   // }
