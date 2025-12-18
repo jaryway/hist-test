@@ -65,10 +65,10 @@ DMA_DoubleBuffer_t dma_doublebuffer_oc = {
     .htim = &htim3,
     .tim_channel = TIM_CHANNEL_1,
     .total_pulses = 150000 * 3, //
-    .accel_pulses = 15000,
-    .decel_pulses = 15000,
-    .rpm = 100,
-    .pulses_per_rev = 6400,
+    .accel_pulses = 150000,
+    .decel_pulses = 150000,
+    .rpm = 10,
+    .pulses_per_rev = 1600,
     .active_buffer = 0,
 };
 
@@ -198,9 +198,10 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
   if (htim->Instance == TIM3)
   {
     finish_count_oc++;
-    printf("HAL_TIM_PWM_PulseFinishedCallback\r\n");
+    //  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, __HAL_TIM_GET_COUNTER(&htim3) + 600);
+    // printf("HAL_TIM_PWM_PulseFinishedCallback\r\n");
     // finish_count++;
-    if (check_pulse_finished(htim, &dma_doublebuffer_oc))
+    // if (check_pulse_finished(htim, &dma_doublebuffer_oc))
       return;
   }
 }
@@ -236,7 +237,7 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
   if (htim->Instance == TIM3)
   {
     // printf("HAL_TIM_OC_DelayElapsedCallback-tim3\r\n");
-    // __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, __HAL_TIM_GET_COUNTER(&htim3) + 6000);
+    // __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, __HAL_TIM_GET_COUNTER(&htim3) + 1130);
   }
 }
 int _write(int file, char *ptr, int len)
@@ -331,6 +332,7 @@ int main(void)
   // HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_1);
   // HAL_TIM_OC_Start_IT(&htim3, TIM_CHANNEL_1);
   HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_doublebuffer_oc.dma_buffer, length);
+  // HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   // printf("HAL_TIM_OC_Start_IT\r\n");
 
   /* USER CODE END 2 */
@@ -357,14 +359,17 @@ int main(void)
       // if (HAL_GetTick() - last_time >= 1000)
       // {
       half_count_changed = 0;
-      printf("half_count: %lu, finish_count:%lu\r\n", half_count, finish_count);
+      // printf("half_count: %lu, finish_count:%lu,half_count_oc: %lu, finish_count_oc:%lu\r\n",
+      //        half_count, finish_count, half_count_oc, finish_count_oc);
       last_time = HAL_GetTick();
     }
+
+    fill_buffer_in_background(&dma_doublebuffer);
+    fill_buffer_in_background(&dma_doublebuffer_oc);
   }
 
   // }
-  fill_buffer_in_background(&dma_doublebuffer);
-  fill_buffer_in_background(&dma_doublebuffer_oc);
+
   /* USER CODE END 3 */
 }
 

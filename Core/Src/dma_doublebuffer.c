@@ -143,16 +143,16 @@ void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx
         if (dma_doublebuffer->mode == PWM_ARR)
         {
             uint32_t arr = generate_trapezoid_arr(dma_doublebuffer, pulse_idx);
-            printf("pulse_idx:%lu,temp_buffer[%u]:%lu\r\n", pulse_idx, i, arr);
+            // printf("pulse_idx:%lu,temp_buffer[%u]:%lu\r\n", pulse_idx, i, arr);
             temp_buffer[i] = arr;
         }
         else
         {
 
-            uint32_t ccr = dma_doublebuffer->g_last_accum + 400;
-            dma_doublebuffer->g_last_accum = ccr;
+            // uint32_t ccr = dma_doublebuffer->g_last_accum + 1200;
+            // dma_doublebuffer->g_last_accum = ccr;
             // printf("oc_ccr_pulse_idx:%lu,temp_buffer[%u]:%lu\r\n", pulse_idx, i, ccr);
-            temp_buffer[i] = ccr; //generate_trapezoid_ccr(dma_doublebuffer, pulse_idx);
+            temp_buffer[i] = generate_trapezoid_ccr(dma_doublebuffer, pulse_idx);
         }
     }
 

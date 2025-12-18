@@ -247,7 +247,7 @@ void DMA1_Channel5_IRQHandler(void)
   /* USER CODE END DMA1_Channel5_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_tim1_up);
   /* USER CODE BEGIN DMA1_Channel5_IRQn 1 */
-  HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+  // HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
   // HAL_Delay(500);
 
   /* USER CODE END DMA1_Channel5_IRQn 1 */
