@@ -149,10 +149,11 @@ void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx
         else
         {
 
-            // uint32_t ccr = dma_doublebuffer->g_last_accum + 1200;
-            // dma_doublebuffer->g_last_accum = ccr;
-            // printf("oc_ccr_pulse_idx:%lu,temp_buffer[%u]:%lu\r\n", pulse_idx, i, ccr);
-            temp_buffer[i] = generate_trapezoid_ccr(dma_doublebuffer, pulse_idx);
+            uint32_t ccr = dma_doublebuffer->g_last_accum + 4000;
+            dma_doublebuffer->g_last_accum = ccr;
+            // printf("oc_ccr_pulse_idx:%lu,temp0_buffer[%u]:%lu\r\n", pulse_idx, i, ccr);
+            temp_buffer[i] = ccr;
+            // temp_buffer[i] = generate_trapezoid_ccr(dma_doublebuffer, pulse_idx);
         }
     }
 
@@ -192,7 +193,7 @@ void init_double_buffer(DMA_DoubleBuffer_t *dma_doublebuffer)
     {
         /* align accumulator to current counter to ensure CCR timings are relative to TIM CNT */
         dma_doublebuffer->g_last_accum = (uint64_t)__HAL_TIM_GET_COUNTER(dma_doublebuffer->htim);
-        dma_doublebuffer->g_last_accum += 10ULL; /* small offset to avoid immediate match */
+        dma_doublebuffer->g_last_accum += 100ULL; /* small offset to avoid immediate match */
     }
     else
     {
