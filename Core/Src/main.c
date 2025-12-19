@@ -362,6 +362,12 @@ int main(void)
   //   printf("pulse_index:%03lu, ccr: %lu\r\n", i, arr);
   // }
 
+  for (uint32_t i = 0; i <= BUFFER_SIZE; i++)
+  {
+    uint32_t ccr = dma_doublebuffer_oc.dma_buffer[i];
+    printf("dma_doublebuffer_oc.dma_buffer[%03lu]: %lu\r\n", i, ccr);
+  }
+
   // HAL_TIM_OC_Start(&htim3, TIM_CHANNEL_1);
   // HAL_TIM_OC_Start_IT(&htim3, TIM_CHANNEL_1);
   HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_doublebuffer_oc.dma_buffer, length);
