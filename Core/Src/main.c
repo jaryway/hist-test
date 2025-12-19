@@ -78,6 +78,7 @@ static uint32_t half_count_oc = 0;
 static uint32_t finish_count_oc = 0;
 static uint8_t half_count_changed = 0;
 static uint32_t last_time = 0;
+static uint32_t last_time_oc = 0;
 
 /* USER CODE END PV */
 
@@ -225,6 +226,35 @@ void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
     // printf("HAL_TIM_PWM_PulseFinishedHalfCpltCallback-3\r\n");
     // printf("HAL_TIM_PWM_PulseFinishedHalfCpltCallback-4\r\n");
 
+    DMA_HandleTypeDef *hdma = htim->hdma[TIM_DMA_ID_UPDATE];
+    if (hdma != NULL)
+    {
+      // return;
+      uint32_t par = (uint32_t)hdma->Instance->CPAR;                       /* DMA 外设地址 */
+      uint32_t mar = (uint32_t)hdma->Instance->CMAR;                       /* DMA 内存地址 */
+      uint32_t cndtr = (uint32_t)hdma->Instance->CNDTR;                    /* 剩余要传的数据项数 */
+      uint32_t ccr = (uint32_t)__HAL_TIM_GET_COMPARE(htim, TIM_CHANNEL_1); /* TIM 当前 CCR */
+
+      uint32_t transferred = BUFFER_SIZE - cndtr; /* 已经传送的元素数 */
+      uint32_t last_idx = (transferred == 0) ? (BUFFER_SIZE - 1) : (transferred - 1);
+      uint32_t next_idx = transferred % BUFFER_SIZE;
+
+      uint16_t last_val = dma_doublebuffer.dma_buffer[last_idx]; /* DMA 最近写入的内存值 */
+      uint16_t next_val = dma_doublebuffer.dma_buffer[next_idx]; /* 下一个将被写的内存值 */
+
+      printf("HT: CPAR=0x%08lX CMAR=0x%08lX CNDTR=%lu transferred=%lu CCR=%lu\r\n",
+             (unsigned long)par,
+             (unsigned long)mar,
+             (unsigned long)cndtr,
+             (unsigned long)transferred, //
+             (unsigned long)ccr);
+      printf("HT: last_idx=%lu last_val=%u next_idx=%lu next_val=%u\r\n",
+             (unsigned long)last_idx,
+             (unsigned)last_val,
+             (unsigned long)next_idx, //
+             (unsigned)next_val);
+    }
+
     if (check_pulse_finished(htim, &dma_doublebuffer_oc))
       return;
 
@@ -237,7 +267,10 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
   if (htim->Instance == TIM3)
   {
     // printf("HAL_TIM_OC_DelayElapsedCallback-tim3\r\n");
-    // __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, __HAL_TIM_GET_COUNTER(&htim3) + 1130);
+    last_time_oc += 40;
+    __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, last_time_oc);
+    // uint32_t cnt = __HAL_TIM_GET_COUNTER(htim);
+    // __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, cnt + 40);
   }
 }
 int _write(int file, char *ptr, int len)
