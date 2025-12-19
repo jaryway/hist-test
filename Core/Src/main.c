@@ -375,15 +375,29 @@ int main(void)
       pulse_count++;
       uint32_t ccr = dma_doublebuffer_oc.dma_buffer[i];
       printf("dma_doublebuffer_oc.dma_buffer[%03lu]: %lu, pulse_count:%lu\r\n", i, ccr, pulse_count);
-      if ((i == BUFFER_SIZE / 2 - 1 || i == BUFFER_SIZE - 1) //
-          && dma_doublebuffer_oc.pulses_filled < dma_doublebuffer_oc.total_pulses)
+      if ((i == BUFFER_SIZE / 2 - 1 || i == BUFFER_SIZE - 1))
       {
+        if (pulse_count >= dma_doublebuffer_oc.total_pulses)
+        {
+          printf("done\r\n");
+          break;
+        }
+        // printf("next_fill_buffer-0:", dma_doublebuffer_oc.next_fill_buffer);
         switch_buffer(&dma_doublebuffer_oc);
+        printf("next_fill_buffer:%d\r\n", dma_doublebuffer_oc.next_fill_buffer);
         fill_buffer_in_background(&dma_doublebuffer_oc);
         fill_count++;
-        printf("half_cplt,pulses_filled: %lu, fill_count: %lu\r\n", dma_doublebuffer_oc.pulses_filled, fill_count);
+        printf("half_cplt,pulses_filled: %lu, fill_count: %lu,next_fill_buffer:%d\r\n",
+               dma_doublebuffer_oc.pulses_filled,
+               fill_count,
+               dma_doublebuffer_oc.next_fill_buffer);
       }
     }
+    // if (pulse_count >= dma_doublebuffer_oc.total_pulses)
+    // {
+    //   printf("finish\r\n");
+    //   break;
+    // }
   }
 
   // for (uint32_t i = 0; i < dma_doublebuffer_oc.total_pulses; i++)
