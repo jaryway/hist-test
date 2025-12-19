@@ -226,7 +226,7 @@ void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
     // printf("HAL_TIM_PWM_PulseFinishedHalfCpltCallback-3\r\n");
     // printf("HAL_TIM_PWM_PulseFinishedHalfCpltCallback-4\r\n");
 
-    DMA_HandleTypeDef *hdma = htim->hdma[TIM_DMA_ID_UPDATE];
+    DMA_HandleTypeDef *hdma = htim->hdma[TIM_DMA_ID_CC1];
     if (hdma != NULL)
     {
       // return;
