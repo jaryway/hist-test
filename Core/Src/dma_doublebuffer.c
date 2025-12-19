@@ -132,8 +132,8 @@ uint32_t generate_trapezoid_ccr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t p
 
 void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx)
 {
-    uint16_t count = BUFFER_SIZE / 2;
-    uint16_t temp_buffer[count];
+    uint16_t half_size = BUFFER_SIZE / 2;
+    uint16_t temp_buffer[half_size];
     uint16_t *buffer = dma_doublebuffer->dma_buffer;
 
     // if (dma_doublebuffer->mode == OC_CCR)
@@ -143,7 +143,7 @@ void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx
     //     dma_doublebuffer->g_last_accum = (uint64_t)cnt + margin_ticks;
     // }
 
-    for (uint16_t i = 0; i < count; i++)
+    for (uint16_t i = 0; i < half_size; i++)
     {
         uint32_t pulse_idx = start_idx + i;
         pulse_idx = pulse_idx >= dma_doublebuffer->total_pulses ? dma_doublebuffer->total_pulses - 1 : pulse_idx;
@@ -158,7 +158,7 @@ void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx
 
             uint32_t ccr32 = dma_doublebuffer->g_last_accum + 40;
             dma_doublebuffer->g_last_accum = ccr32;
-            // printf("oc_ccr_pulse_idx:%lu,temp0_buffer[%u]:%lu\r\n", pulse_idx, i, ccr);
+            // printf("oc_ccr_pulse_idx:%lu,temp0_buffer[%u]:%lu\r\n", pulse_idx, i, ccr32);
             temp_buffer[i] = (uint16_t)(ccr32 & 0xFFFF);
             // temp_buffer[i] = generate_trapezoid_ccr(dma_doublebuffer, pulse_idx);
         }
@@ -167,13 +167,14 @@ void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx
     if (dma_doublebuffer->next_fill_buffer == 0)
     {
         // 填充前半区
-        memcpy(buffer, temp_buffer, count * sizeof(uint16_t));
+        memcpy(buffer, temp_buffer, half_size * sizeof(uint16_t));
     }
     else if (dma_doublebuffer->next_fill_buffer == 1)
     {
         // 填充后半区
-        memcpy(&buffer[count], temp_buffer, count * sizeof(uint16_t));
+        memcpy(&buffer[half_size], temp_buffer, half_size * sizeof(uint16_t));
     }
+    //  printf("buffer.length:%lu\r\n");
 }
 void fill_buffer(DMA_DoubleBuffer_t *dma_doublebuffer)
 {

@@ -5,7 +5,7 @@
 #include "stm32f1xx_hal.h"
 
 // ========== 配置参数 ==========
-#define BUFFER_SIZE 256                    // 每个缓冲区256个脉冲
+#define BUFFER_SIZE 64                    // 每个缓冲区256个脉冲
 #define CLK_PSC 1.0f                       // 时钟预分频数
 #define HAED_CLK_HZ 72000000.0f            // 硬件时钟频率
 #define SYS_CLK_HZ (HAED_CLK_HZ / CLK_PSC) // 时钟频率
