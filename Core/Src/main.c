@@ -239,8 +239,8 @@ void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
       uint32_t last_idx = (transferred == 0) ? (BUFFER_SIZE - 1) : (transferred - 1);
       uint32_t next_idx = transferred % BUFFER_SIZE;
 
-      uint16_t last_val = dma_doublebuffer.dma_buffer[last_idx]; /* DMA 最近写入的内存值 */
-      uint16_t next_val = dma_doublebuffer.dma_buffer[next_idx]; /* 下一个将被写的内存值 */
+      uint16_t last_val = dma_doublebuffer_oc.dma_buffer[last_idx]; /* DMA 最近写入的内存值 */
+      uint16_t next_val = dma_doublebuffer_oc.dma_buffer[next_idx]; /* 下一个将被写的内存值 */
 
       printf("HT: CPAR=0x%08lX CMAR=0x%08lX CNDTR=%lu transferred=%lu CCR=%lu\r\n",
              (unsigned long)par,
