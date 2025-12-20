@@ -25,7 +25,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "stdio.h"
+#include <stdio.h>
+#include <string.h>
 
 /* USER CODE END Includes */
 
@@ -47,8 +48,11 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
-static uint16_t buffer[256];
+#define BUFFER_SIZE 1024
+static uint16_t dma_buffer[BUFFER_SIZE];
+static uint32_t g_ccr32 = 0;
+volatile uint8_t active_buffer = 0;
+volatile uint8_t next_fill_buffer = 0;
 
 /* USER CODE END PV */
 
@@ -61,6 +65,105 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+void _fill_buffer()
+{
+  uint16_t half_size = BUFFER_SIZE / 2;
+  uint16_t ccr = 0;
+
+  for (uint16_t i = 0; i < half_size; i++)
+  {
+    g_ccr32 += 4;
+    ccr = (uint16_t)(g_ccr32 & 0xFFFF);
+
+    if (next_fill_buffer == 0)
+    {
+      dma_buffer[i] = ccr;
+    }
+    else if (next_fill_buffer == 1)
+    {
+      dma_buffer[i + half_size] = ccr;
+    }
+  }
+  next_fill_buffer = 0xFF;
+}
+
+void _fill_buffer_in_background()
+{
+  // dma_doublebuffer->fill_buffer_in_background_count++;
+  if (next_fill_buffer == 0xFF)
+    return;
+
+  _fill_buffer();
+
+  next_fill_buffer = 0xFF;
+}
+
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM3)
+  {
+    // printf("HAL_TIM_PWM_PulseFinishedCallback\r\n");
+    if (active_buffer == 0)
+    {
+      active_buffer = 1;
+      next_fill_buffer = 0;
+    }
+    else
+    {
+      active_buffer = 0;
+      next_fill_buffer = 1;
+    }
+    // _fill_buffer();
+  }
+}
+
+void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM3)
+  {
+    // printf("HAL_TIM_PWM_PulseFinishedHalfCpltCallback\r\n");
+    // DMA_HandleTypeDef *hdma = htim->hdma[TIM_DMA_ID_CC1];
+    // if (hdma != NULL)
+    // {
+    //   uint32_t par = (uint32_t)hdma->Instance->CPAR;                       /* DMA 外设地址 */
+    //   uint32_t mar = (uint32_t)hdma->Instance->CMAR;                       /* DMA 内存地址 */
+    //   uint32_t cndtr = (uint32_t)hdma->Instance->CNDTR;                    /* 剩余要传的数据项数 */
+    //   uint32_t ccr = (uint32_t)__HAL_TIM_GET_COMPARE(htim, TIM_CHANNEL_1); /* TIM 当前 CCR */
+
+    //   uint32_t transferred = BUFFER_SIZE - cndtr; /* 已经传送的元素数 */
+    //   uint32_t last_idx = (transferred == 0) ? (BUFFER_SIZE - 1) : (transferred - 1);
+    //   uint32_t next_idx = transferred % BUFFER_SIZE;
+
+    //   uint16_t last_val = dma_buffer[last_idx]; /* DMA 最近写入的内存值 */
+    //   uint16_t next_val = dma_buffer[next_idx]; /* 下一个将被写的内存值 */
+
+    //   printf("HT: CPAR=0x%08lX CMAR=0x%08lX CNDTR=%lu transferred=%lu CCR=%lu\r\n",
+    //          (unsigned long)par,
+    //          (unsigned long)mar,
+    //          (unsigned long)cndtr,
+    //          (unsigned long)transferred, //
+    //          (unsigned long)ccr);
+    //   printf("HT: last_idx=%lu last_val=%u next_idx=%lu next_val=%u\r\n",
+    //          (unsigned long)last_idx,
+    //          (unsigned)last_val,
+    //          (unsigned long)next_idx, //
+    //          (unsigned)next_val);
+    // }
+    if (active_buffer == 0)
+    {
+      active_buffer = 1;
+      next_fill_buffer = 0;
+    }
+    else
+    {
+      active_buffer = 0;
+      next_fill_buffer = 1;
+    }
+    // _fill_buffer();
+    
+  }
+}
+
 void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM3)
@@ -69,7 +172,7 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
     // last_time_oc += 1200;
     // __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, last_time_oc);
     uint32_t cnt = __HAL_TIM_GET_COUNTER(htim);
-    __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, cnt + 120);
+    __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, cnt + 4);
   }
 }
 
@@ -130,17 +233,26 @@ int main(void)
 
   printf("System start\r\n");
 
-  uint32_t cnt = __HAL_TIM_GET_COUNTER(&htim3);
+  // uint32_t cnt = __HAL_TIM_GET_COUNTER(&htim3);
+  g_ccr32 = __HAL_TIM_GET_COUNTER(&htim3);
 
-  for (int i = 0; i < 100; i++)
-  {
-    uint32_t ccr32 = cnt + (i + 1) * 120;
-    buffer[i] = (uint16_t)(ccr32 & 0xFFFF);
-  }
+  // for (int i = 0; i < BUFFER_SIZE; i++)
+  // {
+  //   g_ccr32 += 120;
+  //   dma_buffer[i] = (uint16_t)(g_ccr32 & 0xFFFF);
+  //   printf("ccr32 = %05lu, dma_buffer[%04u]: %u\r\n", g_ccr32, i, dma_buffer[i]);
+  // }
   
-  HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)buffer, 100);
+  next_fill_buffer = 0;
+  _fill_buffer();
+  next_fill_buffer = 1;
+  _fill_buffer();
+  next_fill_buffer = 0xFF;
+
+  HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_buffer, BUFFER_SIZE);
 
   // HAL_TIM_OC_Start_IT(&htim3, TIM_CHANNEL_1);
+
   // HAL_TIM_Base_Start(&htim3);
   // HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 
@@ -153,6 +265,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    _fill_buffer_in_background();
   }
   /* USER CODE END 3 */
 }
