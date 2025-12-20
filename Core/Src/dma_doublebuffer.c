@@ -156,7 +156,7 @@ void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx
         else
         {
 
-            uint32_t ccr32 = dma_doublebuffer->g_last_accum + 40;
+            uint32_t ccr32 = dma_doublebuffer->g_last_accum + 1200;
             dma_doublebuffer->g_last_accum = ccr32;
             // printf("oc_ccr_pulse_idx:%lu,temp0_buffer[%u]:%lu\r\n", pulse_idx, i, ccr32);
             temp_buffer[i] = (uint16_t)(ccr32 & 0xFFFF);

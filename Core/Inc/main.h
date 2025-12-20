@@ -61,8 +61,6 @@ void Error_Handler(void);
 #define ENA_GPIO_Port GPIOA
 #define DIR_Pin GPIO_PIN_5
 #define DIR_GPIO_Port GPIOA
-#define PUL_Pin GPIO_PIN_8
-#define PUL_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 
