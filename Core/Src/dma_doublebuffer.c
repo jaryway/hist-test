@@ -4,16 +4,184 @@
 #include <stm32f1xx_hal_tim.h>
 #include <stdio.h>
 
-extern TIM_HandleTypeDef htim3;
-
-static const double TICK_HZ = 1000000.0; // 1MHz计数频率
-/* runtime tick frequeng_tick_hzcy (ticks per second) - will be updated from TIM3 PSC at init */
-// static double g_tick_hz = 1000000.0; /* default 1 MHz */
-
-// static uint64_t g_last_accum = 0;        // 记录上一个绝对CCR时间点
-// 频率到ARR的转换函数
-static uint32_t freq_to_arr(float freq_hz)
+static float generate_trapezoid_freq(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index)
 {
+    // 运动参数
+    uint32_t total_pulses = dma_doublebuffer->total_pulses;
+    uint32_t accel_pulses = dma_doublebuffer->accel_pulses;
+    uint32_t decel_pulses = dma_doublebuffer->decel_pulses;
+    uint32_t cruise_pulses = total_pulses - accel_pulses - decel_pulses;
+    uint32_t max_rpm = dma_doublebuffer->max_rpm;
+    uint32_t pulses_per_rev = dma_doublebuffer->pulses_per_rev;
+
+    // 频率参数（单位：Hz）
+    // uint16_t PSC = dma_doublebuffer->htim->Instance->PSC;
+    // float start_freq = 72000000.0f / (float)(PSC + 1);               // 起始频率
+    float start_freq = 1000;                                         // 起始频率
+    float max_freq = (float)max_rpm / 60.0f * (float)pulses_per_rev; // 最大频率
+    // float end_freq = 72000000.0f / (float)(PSC + 1);                 // 结束频率
+    float end_freq = 1000; // 结束频率
+
+    // printf("start_freq: %f Hz\n", start_freq);
+
+    // 验证参数
+    if (max_freq > 250000.0f)
+        max_freq = 250000.0f; // 限制最大频率
+    if (start_freq > max_freq)
+        start_freq = max_freq;
+    if (end_freq > max_freq)
+        end_freq = max_freq;
+
+    float freq_hz;
+
+    if (pulse_index < accel_pulses)
+    {
+        // 加速段：线性加速
+        float ratio = (float)pulse_index / accel_pulses;
+        // 使用线性插值
+        freq_hz = start_freq + (max_freq - start_freq) * ratio;
+    }
+    else if (pulse_index < accel_pulses + cruise_pulses)
+    {
+        // 匀速段
+        freq_hz = max_freq;
+    }
+    else if (pulse_index < total_pulses)
+    {
+        // 减速段：线性减速
+        uint32_t decel_start = accel_pulses + cruise_pulses;
+        float ratio = (float)(pulse_index - decel_start) / decel_pulses;
+        // 从最大频率减速到结束频率
+        freq_hz = max_freq - (max_freq - end_freq) * ratio;
+    }
+    else
+    {
+        // 不应该执行到这里
+        freq_hz = end_freq;
+    }
+
+    return freq_hz;
+}
+
+void dma_doublebuffer_init(DMA_DoubleBuffer_t *dma_doublebuffer)
+{
+    // 使用 OC + CCR 模式时，初始化 last_accum
+    if (dma_doublebuffer->mode == OC_CCR)
+    {
+        /* align accumulator to current counter to ensure CCR timings are relative to TIM CNT */
+        dma_doublebuffer->g_last_accum = (uint64_t)__HAL_TIM_GET_COUNTER(dma_doublebuffer->htim);
+        dma_doublebuffer->g_last_accum += 100ULL; /* small offset to avoid immediate match */
+        // uint16_t psc1 = dma_doublebuffer->htim->Instance->PSC;
+        // printf("psc=%d\n", psc1);
+
+        // dma_doublebuffer->tick_hz=
+    }
+
+    /* fill initial buffer - caller should update pulses_filled accordingly */
+    /* 初始化时，两个缓冲区都填充数据 */
+    dma_doublebuffer->next_fill_buffer = 0;
+    dma_doublebuffer_fill(dma_doublebuffer);
+    dma_doublebuffer->next_fill_buffer = 1;
+    dma_doublebuffer_fill(dma_doublebuffer);
+
+    dma_doublebuffer->active_buffer = 0;
+    dma_doublebuffer->next_fill_buffer = 0xFF;
+    dma_doublebuffer->fill_buffer_in_background_count = 0;
+}
+void dma_doublebuffer_fill(DMA_DoubleBuffer_t *dma_doublebuffer)
+{
+    uint32_t start_index = dma_doublebuffer->pulses_filled;
+    uint16_t half_size = BUFFER_SIZE / 2;
+    uint16_t temp_buffer[half_size];
+    uint16_t *dma_buffer = dma_doublebuffer->dma_buffer;
+
+    for (uint16_t i = 0; i < half_size; i++)
+    {
+        dma_doublebuffer->filled_count++;
+        uint32_t pulse_index = start_index + i;
+
+        if (pulse_index >= dma_doublebuffer->total_pulses)
+        {
+            pulse_index = dma_doublebuffer->total_pulses - 1;
+        }
+
+        if (dma_doublebuffer->mode == PWM_ARR)
+        {
+            uint32_t arr32 = dma_doublebuffer_generate_t_arr(dma_doublebuffer, pulse_index);
+            temp_buffer[i] = (uint16_t)(arr32 & 0xFFFF);
+        }
+        else
+        {
+            // uint32_t ccr32 = dma_doublebuffer->g_last_accum + 4;
+            // dma_doublebuffer->g_last_accum = ccr32;
+            uint32_t ccr32 = dma_doublebuffer_generate_t_ccr(dma_doublebuffer, pulse_index);
+            temp_buffer[i] = (uint16_t)(ccr32 & 0xFFFF);
+        }
+    }
+
+    if (dma_doublebuffer->next_fill_buffer == 0)
+    {
+        memcpy(&dma_buffer[0], temp_buffer, half_size * sizeof(uint16_t)); // 填充前半区
+    }
+    else if (dma_doublebuffer->next_fill_buffer == 1)
+    {
+        memcpy(&dma_buffer[half_size], temp_buffer, half_size * sizeof(uint16_t)); // 填充后半区
+    }
+}
+
+void dma_doublebuffer_switch(DMA_DoubleBuffer_t *dma_doublebuffer)
+{
+    if (dma_doublebuffer->active_buffer == 0)
+    {
+        dma_doublebuffer->active_buffer = 1;
+        dma_doublebuffer->next_fill_buffer = 0;
+    }
+    else
+    {
+        dma_doublebuffer->active_buffer = 0;
+        dma_doublebuffer->next_fill_buffer = 1;
+    }
+}
+
+void dma_doublebuffer_fill_in_background(DMA_DoubleBuffer_t *dma_doublebuffer)
+{
+    dma_doublebuffer->fill_buffer_in_background_count++;
+    if (dma_doublebuffer->next_fill_buffer == 0xFF)
+        return;
+
+    dma_doublebuffer_fill(dma_doublebuffer);
+
+    dma_doublebuffer->next_fill_buffer = 0xFF;
+}
+
+uint8_t dma_doublebuffer_check_finished(DMA_DoubleBuffer_t *dma_doublebuffer)
+{
+    uint32_t temp = dma_doublebuffer->pulses_sent + BUFFER_SIZE / 2;
+
+    // 判断脉冲是否发送完成，如果已经发送完成，停止DMA传输
+    if (temp >= dma_doublebuffer->total_pulses)
+    {
+        dma_doublebuffer->pulses_sent = dma_doublebuffer->total_pulses; // 重新修正发送位置
+        if (dma_doublebuffer->mode == PWM_ARR)
+        {
+            HAL_TIM_PWM_Stop(dma_doublebuffer->htim, dma_doublebuffer->tim_channel);
+            HAL_TIM_Base_Stop_DMA(dma_doublebuffer->htim);
+        }
+        else if (dma_doublebuffer->mode == OC_CCR)
+        {
+            HAL_TIM_OC_Stop_DMA(dma_doublebuffer->htim, dma_doublebuffer->tim_channel);
+        }
+        return 1;
+    }
+
+    dma_doublebuffer->pulses_sent = temp;
+    return 0;
+}
+
+uint32_t dma_doublebuffer_generate_t_arr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index)
+{
+    float freq_hz = generate_trapezoid_freq(dma_doublebuffer, pulse_index);
+
     // const uint32_t SYS_CLK_HZ = 72000000; // 72MHz
     const float MAX_FREQ = 250000.0f; // 250KHz最大频率
 
@@ -42,193 +210,58 @@ static uint32_t freq_to_arr(float freq_hz)
     return arr;
 }
 
-static float generate_trapezoid_freq(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index)
+uint32_t dma_doublebuffer_generate_t_ccr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t transfer_index)
 {
-    // 运动参数
-    uint32_t total_pulses = dma_doublebuffer->total_pulses;
-    uint32_t accel_pulses = dma_doublebuffer->accel_pulses;
-    uint32_t decel_pulses = dma_doublebuffer->decel_pulses;
-    uint32_t cruise_pulses = total_pulses - accel_pulses - decel_pulses;
-    uint32_t rpm = dma_doublebuffer->rpm;
-    uint32_t pulses_per_rev = dma_doublebuffer->pulses_per_rev;
 
-    // 频率参数（单位：Hz）
-    float start_freq = SYS_CLK_HZ / 65536;                       // 起始频率 1099Hz
-    float max_freq = (float)rpm / 60.0f * (float)pulses_per_rev; // 最大频率 = 250KHz
-    float end_freq = SYS_CLK_HZ / 65536;                         // 结束频率 1099Hz
+    dma_doublebuffer->g_last_accum += 40;
+    return dma_doublebuffer->g_last_accum;
 
-    // 验证参数
-    if (max_freq > 250000.0f)
-        max_freq = 250000.0f; // 限制最大频率
-    if (start_freq > max_freq)
-        start_freq = max_freq;
-    if (end_freq > max_freq)
-        end_freq = max_freq;
+    // 翻转模式下，传输两次才是个完整的脉冲
+    dma_doublebuffer->g_last_accum;
+    dma_doublebuffer->step_delay = 40;
+    uint32_t tmp = dma_doublebuffer->g_last_accum + dma_doublebuffer->step_delay / 2;
+    dma_doublebuffer->g_last_accum = tmp;
 
-    float current_freq;
-
-    if (pulse_index < accel_pulses)
+    if ((transfer_index + 1) % 2 == 0)
     {
-        // 加速段：线性加速
-        float ratio = (float)pulse_index / accel_pulses;
-        // 使用线性插值
-        current_freq = start_freq + (max_freq - start_freq) * ratio;
-    }
-    else if (pulse_index < accel_pulses + cruise_pulses)
-    {
-        // 匀速段
-        current_freq = max_freq;
-    }
-    else if (pulse_index < total_pulses)
-    {
-        // 减速段：线性减速
-        uint32_t decel_start = accel_pulses + cruise_pulses;
-        float ratio = (float)(pulse_index - decel_start) / decel_pulses;
-        // 从最大频率减速到结束频率
-        current_freq = max_freq - (max_freq - end_freq) * ratio;
-    }
-    else
-    {
-        // 不应该执行到这里
-        current_freq = end_freq;
+        //
     }
 
-    return current_freq;
-}
-/* 根据 pulse_index 返回该脉冲对应的周期（以 timer ticks 为单位）
-   使用梯形速度剖面（与原 generate_trapezoid_arr 相同的分段逻辑），
-   但这里返回 period_ticks = round(tick_hz / freq)
-*/
-
-uint32_t generate_trapezoid_arr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index)
-{
-    // (void)dma_doublebuffer; // 未使用该参数，避免编译器警告
-    // (void)pulse_index;
-    float current_freq = generate_trapezoid_freq(dma_doublebuffer, pulse_index);
-    return freq_to_arr(current_freq);
-}
-
-uint32_t generate_trapezoid_ccr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index)
-{
-    // 假设 PSC =0, ARR = 65535
-    float current_freq = generate_trapezoid_freq(dma_doublebuffer, pulse_index);
-    // 防止除以零或极小值
-    if (current_freq <= 1e-6f)
-        current_freq = 1.0f;
-
-    // period in seconds = 1 / freq
-    double period_sec = 1.0 / (double)current_freq; // 得到当前频率下的时间间隔
-
-    // convert to ticks
-    uint32_t period_ticks = (uint32_t)(period_sec * TICK_HZ + 0.5);
-
-    if (period_ticks == 0)
-        period_ticks = 1;
-
-    dma_doublebuffer->g_last_accum += (uint64_t)period_ticks;
-    /* 返回低 32 位绝对时间点（写入 DMA buffer 时只取低16位） */
     return (uint32_t)(dma_doublebuffer->g_last_accum & 0xFFFFFFFFUL);
-}
 
-void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx)
-{
-    uint16_t half_size = BUFFER_SIZE / 2;
-    uint16_t temp_buffer[half_size];
-    uint16_t *buffer = dma_doublebuffer->dma_buffer;
+    // dma_doublebuffer->i
 
-    // if (dma_doublebuffer->mode == OC_CCR)
+    // // uint32_t index = step_index / 2;
+    // if ((step_index + 1) % 2 == 0)
     // {
-    //     uint32_t cnt = __HAL_TIM_GET_COUNTER(dma_doublebuffer->htim);
-    //     const uint32_t margin_ticks = 1;
-    //     dma_doublebuffer->g_last_accum = (uint64_t)cnt + margin_ticks;
+    //     dma_doublebuffer->g_last_accum += (uint64_t)dma_doublebuffer->step_delay;
+    //     return (uint32_t)(dma_doublebuffer->g_last_accum & 0xFFFFFFFFUL);
     // }
 
-    for (uint16_t i = 0; i < half_size; i++)
-    {
-        uint32_t pulse_idx = start_idx + i;
-        pulse_idx = pulse_idx >= dma_doublebuffer->total_pulses ? dma_doublebuffer->total_pulses - 1 : pulse_idx;
-        if (dma_doublebuffer->mode == PWM_ARR)
-        {
-            uint32_t arr = generate_trapezoid_arr(dma_doublebuffer, pulse_idx);
-            // printf("pulse_idx:%lu,temp_buffer[%u]:%lu\r\n", pulse_idx, i, arr);
-            temp_buffer[i] = arr;
-        }
-        else
-        {
+    // float freq_hz = generate_trapezoid_freq(dma_doublebuffer, step_index);
 
-            uint32_t ccr32 = dma_doublebuffer->g_last_accum + 1200;
-            dma_doublebuffer->g_last_accum = ccr32;
-            // printf("oc_ccr_pulse_idx:%lu,temp0_buffer[%u]:%lu\r\n", pulse_idx, i, ccr32);
-            temp_buffer[i] = (uint16_t)(ccr32 & 0xFFFF);
-            // temp_buffer[i] = generate_trapezoid_ccr(dma_doublebuffer, pulse_idx);
-        }
-    }
+    // // return freq_hz;
+    // // 防止除以零或极小值
+    // if (freq_hz <= 1e-6f)
+    //     freq_hz = 1.0f;
 
-    if (dma_doublebuffer->next_fill_buffer == 0)
-    {
-        // 填充前半区
-        memcpy(buffer, temp_buffer, half_size * sizeof(uint16_t));
-    }
-    else if (dma_doublebuffer->next_fill_buffer == 1)
-    {
-        // 填充后半区
-        memcpy(&buffer[half_size], temp_buffer, half_size * sizeof(uint16_t));
-    }
-    //  printf("buffer.length:%lu\r\n");
-}
-void fill_buffer(DMA_DoubleBuffer_t *dma_doublebuffer)
-{
-    uint32_t start_idx = dma_doublebuffer->pulses_filled;
-    uint16_t fill_count = BUFFER_SIZE / 2;
+    // // period in seconds = 1 / freq
+    // double period_sec = 1.0 / (double)freq_hz; // 得到当前频率下电机走一步所需要的时间
+    // uint16_t PSC = dma_doublebuffer->htim->Instance->PSC;
+    // const double TICK_HZ = 1.0 / ((double)72000000.0 / (double)(PSC + 1)); // 定时器走一步所需的时间 0.000001
+    // // double max_freg = dma_doublebuffer->max_rpm * dma_doublebuffer->pulses_per_rev / 60; // 电机最高转速时，走一步所需的时间
+    // // double motor_min_tick = 1.0 / max_freg;                                              // 0.000004
+    // // double min_ccr = motor_min_tick / TICK_HZ;                                           // 40
 
-    if (start_idx + fill_count > dma_doublebuffer->total_pulses)
-    {
-        fill_count = dma_doublebuffer->total_pulses - start_idx;
-    }
+    // dma_doublebuffer->step_delay = period_sec / TICK_HZ;
 
-    if (fill_count > 0)
-    {
-        fill_single_buffer(dma_doublebuffer, start_idx);
-        dma_doublebuffer->pulses_filled += fill_count; // 更新填充位置
-    }
-    dma_doublebuffer->fill_count++;
-}
-
-void init_double_buffer(DMA_DoubleBuffer_t *dma_doublebuffer)
-{
-    // update_tick_hz_from_tim3();
-    // 使用 OC + CCR 模式时，初始化 last_accum
-    if (dma_doublebuffer->mode == OC_CCR)
-    {
-        /* align accumulator to current counter to ensure CCR timings are relative to TIM CNT */
-        dma_doublebuffer->g_last_accum = (uint64_t)__HAL_TIM_GET_COUNTER(dma_doublebuffer->htim);
-        dma_doublebuffer->g_last_accum += 2000ULL; /* small offset to avoid immediate match */
-    }
-    else
-    {
-    }
-
-    /* fill initial buffer - caller should update pulses_filled accordingly */
-    /* 初始化时，两个缓冲区都填充数据 */
-    // dma_doublebuffer->active_buffer = 0;
-    dma_doublebuffer->next_fill_buffer = 0;
-    fill_buffer(dma_doublebuffer);
-    // dma_doublebuffer->active_buffer = 1;
-    dma_doublebuffer->next_fill_buffer = 1;
-    fill_buffer(dma_doublebuffer);
-
-    dma_doublebuffer->active_buffer = 0;
-    dma_doublebuffer->fill_count = 0;
-    dma_doublebuffer->fill_buffer_in_background_count = 0;
-    dma_doublebuffer->next_fill_buffer = 0xFF;
-}
-void fill_buffer_in_background(DMA_DoubleBuffer_t *dma_doublebuffer)
-{
-    dma_doublebuffer->fill_buffer_in_background_count++;
-    if (dma_doublebuffer->next_fill_buffer == 0xFF)
-        return;
-
-    fill_buffer(dma_doublebuffer);
-
-    dma_doublebuffer->next_fill_buffer = 0xFF;
+    // if ((step_index + 1) % 2 == 0)
+    // {
+    //     dma_doublebuffer->g_last_accum += (uint64_t)dma_doublebuffer->step_delay;
+    // }
+    // /* 返回低 32 位绝对时间点（写入 DMA buffer 时只取低16位） */
+    // uint32_t ccr = (uint32_t)(dma_doublebuffer->g_last_accum & 0xFFFFFFFFUL);
+    // //
+    // printf("step_index:%lu ,freq_hz: %.2f ccr: %lu,step_delay:%u\n", step_index, freq_hz, ccr, dma_doublebuffer->step_delay);
+    // return ccr;
 }

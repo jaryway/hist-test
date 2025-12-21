@@ -25,38 +25,37 @@ typedef enum DMA_DoubleBuffer_Mode_t
 typedef struct
 {
     DMA_DoubleBuffer_Mode_t mode; // 模式 0 = pwm+arr, 1 = oc+ccr
+
     TIM_HandleTypeDef *htim;
-    uint32_t tim_channel;  // 定时器通道
+    uint32_t tim_channel; // 定时器通道
+
+    uint32_t max_rpm;     // 电机最高转速
+    float pulses_per_rev; // 脉冲数/圈
+
     uint32_t total_pulses; // 总脉冲数
     uint32_t accel_pulses; // 加速脉冲数
     uint32_t decel_pulses; // 减速脉冲数
-    uint32_t rpm;          // 电机转速
-    float pulses_per_rev;  // 脉冲数/圈
 
     // DMA缓冲区
-    // uint32_t *dma_buf0;       // DMA缓冲区0
-    // uint32_t *dma_buf1;       // DMA缓冲区1
-    // uint16_t dma_buf0[BUFFER_SIZE];       // DMA缓冲区0
-    // uint16_t dma_buf1[BUFFER_SIZE];       // DMA缓冲区1
-    uint16_t dma_buffer[BUFFER_SIZE]; // DMA缓冲区
-    volatile uint8_t active_buffer;   // 当前活动缓冲区（0或1）
+    uint16_t dma_buffer[BUFFER_SIZE];  // DMA缓冲区
+    volatile uint8_t active_buffer;    // 当前活动缓冲区（0或1）
     volatile uint8_t next_fill_buffer; // 下一次要填充的缓冲区(0填充前半区，1填充后半区，255表示已填充)
-    // volatile uint8_t need_fill_buffer; // 是否需要填充缓冲区
-    volatile uint32_t pulses_sent;   // 已发送的脉冲数
-    volatile uint32_t pulses_filled; // 已填充的脉冲数
-    volatile uint64_t g_last_accum;  // 上一个绝对CCR时间点
-    volatile uint32_t fill_count;
+    volatile uint32_t pulses_sent;     // 已发送的脉冲数
+    volatile uint32_t pulses_filled;   // 已填充的脉冲数
+    volatile uint64_t g_last_accum;    // 上一个绝对CCR时间点
+    volatile uint16_t step_delay;      // 步进延时 oc 模式下使用
+    volatile uint16_t filled_count;      // 缓冲填充计数
     volatile uint32_t fill_buffer_in_background_count;
 
 } DMA_DoubleBuffer_t;
 
-void init_double_buffer(DMA_DoubleBuffer_t *dma_doublebuffer);
-void fill_single_buffer(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t start_idx);
-void fill_buffer(DMA_DoubleBuffer_t *dma_doublebuffer);
+void dma_doublebuffer_init(DMA_DoubleBuffer_t *dma_doublebuffer);
+void dma_doublebuffer_fill(DMA_DoubleBuffer_t *dma_doublebuffer);
+void dma_doublebuffer_switch(DMA_DoubleBuffer_t *dma_doublebuffer);
+void dma_doublebuffer_fill_in_background(DMA_DoubleBuffer_t *dma_doublebuffer);
+uint8_t dma_doublebuffer_check_finished(DMA_DoubleBuffer_t *dma_doublebuffer);
 
-uint32_t generate_trapezoid_arr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index);
-uint32_t generate_trapezoid_ccr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index);
-uint32_t generate_trapezoid_period_ticks(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index);
-void fill_buffer_in_background(DMA_DoubleBuffer_t *dma_doublebuffer);
+uint32_t dma_doublebuffer_generate_t_arr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index);
+uint32_t dma_doublebuffer_generate_t_ccr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index);
 
 #endif /* __DMA_DOUBLEBUFFER_H */
