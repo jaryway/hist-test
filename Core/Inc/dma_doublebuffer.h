@@ -44,7 +44,7 @@ typedef struct
     volatile uint32_t pulses_filled;   // 已填充的脉冲数
     volatile uint64_t g_last_accum;    // 上一个绝对CCR时间点
     volatile uint16_t step_delay;      // 步进延时 oc 模式下使用
-    volatile uint16_t filled_count;      // 缓冲填充计数
+    // volatile uint16_t filled_count;      // 缓冲填充计数
     volatile uint32_t fill_buffer_in_background_count;
 
 } DMA_DoubleBuffer_t;

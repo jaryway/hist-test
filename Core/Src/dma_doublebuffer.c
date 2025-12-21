@@ -97,7 +97,7 @@ void dma_doublebuffer_fill(DMA_DoubleBuffer_t *dma_doublebuffer)
 
     for (uint16_t i = 0; i < half_size; i++)
     {
-        dma_doublebuffer->filled_count++;
+        // dma_doublebuffer->filled_count++;
         uint32_t pulse_index = start_index + i;
 
         if (pulse_index >= dma_doublebuffer->total_pulses)
