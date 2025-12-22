@@ -38,7 +38,7 @@ typedef struct
 
     // DMA缓冲区
     uint8_t hdma_id;
-    // uint16_t dma_buffer_size;         // DMA缓冲区大小
+    uint16_t buffer_size;                 // DMA缓冲区大小
     uint16_t dma_buffer[MAX_BUFFER_SIZE]; // DMA缓冲区
 
     volatile uint8_t active_buffer;    // 当前活动缓冲区（0或1）
@@ -48,7 +48,6 @@ typedef struct
     volatile uint64_t g_last_accum;    // 上一个绝对CCR时间点
     volatile uint16_t step_delay;      // 步进延时 oc 模式下使用
     // volatile uint16_t filled_count;      // 缓冲填充计数
-    volatile uint16_t buffer_size; // 缓冲区大小
 
     volatile uint32_t fill_buffer_in_background_count;
 
