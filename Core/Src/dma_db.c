@@ -72,10 +72,16 @@ void dma_db_init(DMA_DB_t *dma_db)
     {
         /* align accumulator to current counter to ensure CCR timings are relative to TIM CNT */
         dma_db->g_last_accum = (uint64_t)__HAL_TIM_GET_COUNTER(dma_db->htim);
-        dma_db->g_last_accum += 100ULL; /* small offset to avoid immediate match */
+        dma_db->g_last_accum += 10ULL; /* small offset to avoid immediate match */
     }
 
-    /* fill initial buffer - caller should update pulses_filled accordingly */
+    uint16_t buffer_size = MAX_DMA_BUFFER_SIZE;
+    while (dma_db->total_pulses % buffer_size != 0)
+    {
+        buffer_size--;
+    }
+    dma_db->buffer_size = buffer_size; // 确保总脉冲数能被缓冲区大小整除
+
     /* 初始化时，两个缓冲区都填充数据 */
     dma_db->next_fill_buffer = 0;
     dma_db_fill_buffer(dma_db);
@@ -158,25 +164,7 @@ void dma_db_fill_in_background(DMA_DB_t *dma_db)
     dma_db_fill_buffer(dma_db);
 
     dma_db->next_fill_buffer = 0xFF;
-    // dma_db_check_and_adjust(dma_db);
 }
-
-// void dma_db_check_and_adjust(DMA_DB_t *dma_db)
-// {
-//     uint32_t remaining_pulses = dma_db->total_pulses - dma_db->pulses_filled;
-
-//     if (remaining_pulses < MAX_BUFFER_SIZE && flag == 0)
-//     {
-//         flag = 1;
-//         DMA_HandleTypeDef *hdma = dma_db->htim->hdma[dma_db->hdma_id];
-
-//         printf("dma_db_check_and_adjust: remaining_pulses=%lu,CNDTR:%lu\n", remaining_pulses, hdma->Instance->CNDTR);
-//         // __HAL_DMA_DISABLE(hdma);
-//         hdma->Instance->CNDTR = remaining_pulses; // 设置DMA传输数量
-//         // hdma->Instance->CCR &= ~DMA_CCR_HTIE;     // 禁用半传输中断
-//         // __HAL_DMA_ENABLE(hdma);
-//     }
-// }
 
 uint8_t dma_db_check_finished(DMA_DB_t *dma_db)
 {

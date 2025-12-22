@@ -65,7 +65,6 @@ DMA_DB_t dma_db_oc = {
     .decel_pulses = 64,       // 减速脉冲
     .max_rpm = 1000,          // 电机最高转速
     .pulses_per_rev = 3200,   // 16 细分
-    .buffer_size = 400,
 };
 
 /* USER CODE END PV */
@@ -286,7 +285,6 @@ int main(void)
     /* USER CODE BEGIN 3 */
     // _fill_buffer_in_background();
     dma_db_fill_in_background(&dma_db_oc);
-    // dma_db_fill_in_background(&dma_db_oc);
     static uint32_t last_time = 0;
     if (HAL_GetTick() - last_time > 1000 && has_count_changed)
     {
