@@ -155,16 +155,6 @@ void dma_doublebuffer_fill_in_background(DMA_DoubleBuffer_t *dma_doublebuffer)
     dma_doublebuffer->next_fill_buffer = 0xFF;
 }
 
-// void dma_doublebuffer_check_and_adjust(DMA_DoubleBuffer_t *dma_doublebuffer)
-// {
-//     uint32_t remaining_pulses = dma_doublebuffer->total_pulses - dma_doublebuffer->pulses_filled;
-//     if (remaining_pulses < BUFFER_SIZE)
-//     {
-//         // dma_doublebuffer->htim->hdma[TIM_DMA_ID_CC1]->Instance->CNDTR = remaining_pulses;
-//         // dma_doublebuffer->htim->hdma[TIM_DMA_ID_CC1]->Instance->CCR &= ~DMA_CCR_HTIE;
-//         // printf("DMA_CCR_HTIE: disabled\r\n");
-//     }
-// }
 
 uint8_t dma_doublebuffer_check_finished(DMA_DoubleBuffer_t *dma_doublebuffer)
 {
@@ -225,7 +215,7 @@ uint32_t dma_doublebuffer_generate_t_arr(DMA_DoubleBuffer_t *dma_doublebuffer, u
 uint32_t dma_doublebuffer_generate_t_ccr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t transfer_index)
 {
 
-    dma_doublebuffer->g_last_accum += 20;
+    dma_doublebuffer->g_last_accum += 18;
     return dma_doublebuffer->g_last_accum;
 
     // // 翻转模式下，传输两次才是个完整的脉冲

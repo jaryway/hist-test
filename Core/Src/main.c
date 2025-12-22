@@ -335,12 +335,12 @@ int main(void)
     /* USER CODE BEGIN 3 */
     // _fill_buffer_in_background();
     dma_doublebuffer_fill_in_background(&dma_doublebuffer_oc);
-    if (has_count_changed)
-    {
-      has_count_changed = 0;
-      // prinf_dma_info(&htim3, &dma_doublebuffer_oc);
-      printf("finished_count:%lu,half_count:%lu\r\n", finished_count, half_count);
-    }
+    // if (has_count_changed)
+    // {
+    //   has_count_changed = 0;
+    //   // prinf_dma_info(&htim3, &dma_doublebuffer_oc);
+    //   printf("finished_count:%lu,half_count:%lu\r\n", finished_count, half_count);
+    // }
   }
   /* USER CODE END 3 */
 }
