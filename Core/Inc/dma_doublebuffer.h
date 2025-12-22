@@ -37,7 +37,10 @@ typedef struct
     uint32_t decel_pulses; // 减速脉冲数
 
     // DMA缓冲区
-    uint16_t dma_buffer[BUFFER_SIZE];  // DMA缓冲区
+    uint8_t hdma_id;
+    // uint16_t dma_buffer_size;         // DMA缓冲区大小
+    uint16_t dma_buffer[BUFFER_SIZE]; // DMA缓冲区
+
     volatile uint8_t active_buffer;    // 当前活动缓冲区（0或1）
     volatile uint8_t next_fill_buffer; // 下一次要填充的缓冲区(0填充前半区，1填充后半区，255表示已填充)
     volatile uint32_t pulses_sent;     // 已发送的脉冲数
@@ -45,6 +48,7 @@ typedef struct
     volatile uint64_t g_last_accum;    // 上一个绝对CCR时间点
     volatile uint16_t step_delay;      // 步进延时 oc 模式下使用
     // volatile uint16_t filled_count;      // 缓冲填充计数
+
     volatile uint32_t fill_buffer_in_background_count;
 
 } DMA_DoubleBuffer_t;
@@ -53,6 +57,7 @@ void dma_doublebuffer_init(DMA_DoubleBuffer_t *dma_doublebuffer);
 void dma_doublebuffer_fill(DMA_DoubleBuffer_t *dma_doublebuffer);
 void dma_doublebuffer_switch(DMA_DoubleBuffer_t *dma_doublebuffer);
 void dma_doublebuffer_fill_in_background(DMA_DoubleBuffer_t *dma_doublebuffer);
+// void dma_doublebuffer_check_and_adjust(DMA_DoubleBuffer_t *dma_doublebuffer);
 uint8_t dma_doublebuffer_check_finished(DMA_DoubleBuffer_t *dma_doublebuffer);
 
 uint32_t dma_doublebuffer_generate_t_arr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index);

@@ -54,16 +54,20 @@ static uint16_t dma_buffer[BUFFER_SIZE];
 static uint32_t g_ccr32 = 0;
 volatile uint8_t active_buffer = 0;
 volatile uint8_t next_fill_buffer = 0;
+static uint32_t half_count = 0;
+static uint32_t finished_count = 0;
+static uint8_t has_count_changed = 0;
 
 DMA_DoubleBuffer_t dma_doublebuffer_oc = {
     .mode = OC_CCR,
     .htim = &htim3,
     .tim_channel = TIM_CHANNEL_1,
-    .total_pulses = 64 * 3, // 总脉冲
-    .accel_pulses = 64,     // 加速脉冲
-    .decel_pulses = 64,     // 减速脉冲
-    .max_rpm = 1000,        // 电机最高转速
-    .pulses_per_rev = 3200, // 16 细分
+    .hdma_id = TIM_DMA_ID_CC1,
+    .total_pulses = 256 * 10000 + 100, // 总脉冲
+    .accel_pulses = 64,                // 加速脉冲
+    .decel_pulses = 64,                // 减速脉冲
+    .max_rpm = 1000,                   // 电机最高转速
+    .pulses_per_rev = 3200,            // 16 细分
 };
 
 /* USER CODE END PV */
@@ -145,6 +149,36 @@ void _switch_buffer()
     next_fill_buffer = 1;
   }
 }
+void prinf_dma_info(TIM_HandleTypeDef *htim, DMA_DoubleBuffer_t *dma_doublebuffer)
+{
+  DMA_HandleTypeDef *hdma = htim->hdma[TIM_DMA_ID_CC1];
+  if (hdma != NULL)
+  {
+    uint32_t par = (uint32_t)hdma->Instance->CPAR;                                       /* DMA 外设地址 */
+    uint32_t mar = (uint32_t)hdma->Instance->CMAR;                                       /* DMA 内存地址 */
+    uint32_t cndtr = (uint32_t)hdma->Instance->CNDTR;                                    /* 剩余要传的数据项数 */
+    uint32_t ccr = (uint32_t)__HAL_TIM_GET_COMPARE(htim, dma_doublebuffer->tim_channel); /* TIM 当前 CCR */
+
+    uint32_t transferred = BUFFER_SIZE - cndtr; /* 已经传送的数据量 */
+    uint32_t last_idx = (transferred == 0) ? (BUFFER_SIZE - 1) : (transferred - 1);
+    uint32_t next_idx = transferred % BUFFER_SIZE;
+
+    uint16_t last_val = dma_doublebuffer->dma_buffer[last_idx]; /* DMA 最近写入的内存值 */
+    uint16_t next_val = dma_doublebuffer->dma_buffer[next_idx]; /* 下一个将被写的内存值 */
+
+    printf("CPAR=0x%08lX CMAR=0x%08lX CNDTR=%lu transferred=%lu CCR=%lu\r\n",
+           (unsigned long)par,
+           (unsigned long)mar,
+           (unsigned long)cndtr,
+           (unsigned long)transferred, //
+           (unsigned long)ccr);
+    printf("last_idx=%lu last_val=%u next_idx=%lu next_val=%u\r\n",
+           (unsigned long)last_idx,
+           (unsigned)last_val,
+           (unsigned long)next_idx, //
+           (unsigned)next_val);
+  }
+}
 
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
@@ -152,9 +186,14 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
   {
     // printf("HAL_TIM_PWM_PulseFinishedCallback\r\n");
     // _switch_buffer();
+    finished_count++;
+    has_count_changed = 1;
+    // prinf_dma_info(htim, &dma_doublebuffer_oc);
 
     if (dma_doublebuffer_check_finished(&dma_doublebuffer_oc))
       return;
+
+    // dma_doublebuffer_check_and_adjust(&dma_doublebuffer_oc);
 
     dma_doublebuffer_switch(&dma_doublebuffer_oc);
   }
@@ -165,33 +204,9 @@ void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
   if (htim->Instance == TIM3)
   {
     // printf("HAL_TIM_PWM_PulseFinishedHalfCpltCallback\r\n");
-    // DMA_HandleTypeDef *hdma = htim->hdma[TIM_DMA_ID_CC1];
-    // if (hdma != NULL)
-    // {
-    //   uint32_t par = (uint32_t)hdma->Instance->CPAR;                       /* DMA 外设地址 */
-    //   uint32_t mar = (uint32_t)hdma->Instance->CMAR;                       /* DMA 内存地址 */
-    //   uint32_t cndtr = (uint32_t)hdma->Instance->CNDTR;                    /* 剩余要传的数据项数 */
-    //   uint32_t ccr = (uint32_t)__HAL_TIM_GET_COMPARE(htim, TIM_CHANNEL_1); /* TIM 当前 CCR */
-
-    //   uint32_t transferred = BUFFER_SIZE - cndtr; /* 已经传送的元素数 */
-    //   uint32_t last_idx = (transferred == 0) ? (BUFFER_SIZE - 1) : (transferred - 1);
-    //   uint32_t next_idx = transferred % BUFFER_SIZE;
-
-    //   uint16_t last_val = dma_buffer[last_idx]; /* DMA 最近写入的内存值 */
-    //   uint16_t next_val = dma_buffer[next_idx]; /* 下一个将被写的内存值 */
-
-    //   printf("HT: CPAR=0x%08lX CMAR=0x%08lX CNDTR=%lu transferred=%lu CCR=%lu\r\n",
-    //          (unsigned long)par,
-    //          (unsigned long)mar,
-    //          (unsigned long)cndtr,
-    //          (unsigned long)transferred, //
-    //          (unsigned long)ccr);
-    //   printf("HT: last_idx=%lu last_val=%u next_idx=%lu next_val=%u\r\n",
-    //          (unsigned long)last_idx,
-    //          (unsigned)last_val,
-    //          (unsigned long)next_idx, //
-    //          (unsigned)next_val);
-    // }
+    half_count++;
+    has_count_changed = 1;
+    // prinf_dma_info(htim, &dma_doublebuffer_oc);
 
     if (dma_doublebuffer_check_finished(&dma_doublebuffer_oc))
       return;
@@ -273,14 +288,7 @@ int main(void)
   printf("System start\r\n");
 
   // uint32_t cnt = __HAL_TIM_GET_COUNTER(&htim3);
-  g_ccr32 = __HAL_TIM_GET_COUNTER(&htim3);
-
-  // for (int i = 0; i < BUFFER_SIZE; i++)
-  // {
-  //   g_ccr32 += 120;
-  //   dma_buffer[i] = (uint16_t)(g_ccr32 & 0xFFFF);
-  //   printf("ccr32 = %05lu, dma_buffer[%04u]: %u\r\n", g_ccr32, i, dma_buffer[i]);
-  // }
+  // g_ccr32 = __HAL_TIM_GET_COUNTER(&htim3);
 
   // next_fill_buffer = 0;
   // _fill_buffer();
@@ -288,7 +296,12 @@ int main(void)
   // _fill_buffer();
   // next_fill_buffer = 0xFF;
 
-  // dma_doublebuffer_init(&dma_doublebuffer_oc);
+  dma_doublebuffer_init(&dma_doublebuffer_oc);
+
+  // for (int i = 0; i < BUFFER_SIZE; i++)
+  // {
+  //   printf("dma_buffer[%04u]: %u\r\n", i, dma_doublebuffer_oc.dma_buffer[i]);
+  // }
 
   // for (uint32_t i = 0; i < dma_doublebuffer_oc.total_pulses; i++)
   // {
@@ -299,7 +312,12 @@ int main(void)
   // DMA1_Channel1->CCR &= ~DMA_CCR_HTIE; // 禁用半传输中断
   // DMA1_Channel1->CCR |= DMA_CCR_HTIE; // 重新启用半传输中断
 
+  // htim3.hdma[TIM_DMA_ID_CC1]->Instance->CCR &= ~DMA_CCR_HTIE; // 禁用半传输中断
+  // htim3.hdma[TIM_DMA_ID_CC1]->XferHalfCpltCallback = NULL;
   HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_doublebuffer_oc.dma_buffer, BUFFER_SIZE);
+  //  __HAL_DMA_DISABLE_IT(htim3.hdma[TIM_DMA_ID_CC1], DMA_IT_HT);
+  // htim3.hdma[TIM_DMA_ID_CC1]->Instance->CCR &= ~DMA_CCR_HTIE; // 禁用半传输中断
+  // dma_doublebuffer_check_and_adjust(&dma_doublebuffer_oc);
 
   // HAL_TIM_OC_Start_IT(&htim3, TIM_CHANNEL_1);
 
@@ -317,6 +335,12 @@ int main(void)
     /* USER CODE BEGIN 3 */
     // _fill_buffer_in_background();
     dma_doublebuffer_fill_in_background(&dma_doublebuffer_oc);
+    if (has_count_changed)
+    {
+      has_count_changed = 0;
+      // prinf_dma_info(&htim3, &dma_doublebuffer_oc);
+      printf("finished_count:%lu,half_count:%lu\r\n", finished_count, half_count);
+    }
   }
   /* USER CODE END 3 */
 }

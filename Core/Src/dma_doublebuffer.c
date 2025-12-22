@@ -65,6 +65,7 @@ static float generate_trapezoid_freq(DMA_DoubleBuffer_t *dma_doublebuffer, uint3
 
 void dma_doublebuffer_init(DMA_DoubleBuffer_t *dma_doublebuffer)
 {
+    // dma_doublebuffer_check_and_adjust(dma_doublebuffer);
     // 使用 OC + CCR 模式时，初始化 last_accum
     if (dma_doublebuffer->mode == OC_CCR)
     {
@@ -97,7 +98,7 @@ void dma_doublebuffer_fill(DMA_DoubleBuffer_t *dma_doublebuffer)
 
     for (uint16_t i = 0; i < half_size; i++)
     {
-        // dma_doublebuffer->filled_count++;
+        dma_doublebuffer->pulses_filled++;
         uint32_t pulse_index = start_index + i;
 
         if (pulse_index >= dma_doublebuffer->total_pulses)
@@ -153,6 +154,17 @@ void dma_doublebuffer_fill_in_background(DMA_DoubleBuffer_t *dma_doublebuffer)
 
     dma_doublebuffer->next_fill_buffer = 0xFF;
 }
+
+// void dma_doublebuffer_check_and_adjust(DMA_DoubleBuffer_t *dma_doublebuffer)
+// {
+//     uint32_t remaining_pulses = dma_doublebuffer->total_pulses - dma_doublebuffer->pulses_filled;
+//     if (remaining_pulses < BUFFER_SIZE)
+//     {
+//         // dma_doublebuffer->htim->hdma[TIM_DMA_ID_CC1]->Instance->CNDTR = remaining_pulses;
+//         // dma_doublebuffer->htim->hdma[TIM_DMA_ID_CC1]->Instance->CCR &= ~DMA_CCR_HTIE;
+//         // printf("DMA_CCR_HTIE: disabled\r\n");
+//     }
+// }
 
 uint8_t dma_doublebuffer_check_finished(DMA_DoubleBuffer_t *dma_doublebuffer)
 {
@@ -213,21 +225,21 @@ uint32_t dma_doublebuffer_generate_t_arr(DMA_DoubleBuffer_t *dma_doublebuffer, u
 uint32_t dma_doublebuffer_generate_t_ccr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t transfer_index)
 {
 
-    dma_doublebuffer->g_last_accum += 40;
+    dma_doublebuffer->g_last_accum += 20;
     return dma_doublebuffer->g_last_accum;
 
-    // 翻转模式下，传输两次才是个完整的脉冲
-    dma_doublebuffer->g_last_accum;
-    dma_doublebuffer->step_delay = 40;
-    uint32_t tmp = dma_doublebuffer->g_last_accum + dma_doublebuffer->step_delay / 2;
-    dma_doublebuffer->g_last_accum = tmp;
+    // // 翻转模式下，传输两次才是个完整的脉冲
+    // dma_doublebuffer->g_last_accum;
+    // dma_doublebuffer->step_delay = 40;
+    // uint32_t tmp = dma_doublebuffer->g_last_accum + dma_doublebuffer->step_delay / 2;
+    // dma_doublebuffer->g_last_accum = tmp;
 
-    if ((transfer_index + 1) % 2 == 0)
-    {
-        //
-    }
+    // if ((transfer_index + 1) % 2 == 0)
+    // {
+    //     //
+    // }
 
-    return (uint32_t)(dma_doublebuffer->g_last_accum & 0xFFFFFFFFUL);
+    // return (uint32_t)(dma_doublebuffer->g_last_accum & 0xFFFFFFFFUL);
 
     // dma_doublebuffer->i
 
