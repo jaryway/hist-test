@@ -16,15 +16,15 @@
 
 // ========== 数据结构 ==========
 
-typedef enum DMA_DoubleBuffer_Mode_t
+typedef enum DMA_DB_Mode_t
 {
     PWM_ARR = 0,
     OC_CCR = 1,
-} DMA_DoubleBuffer_Mode_t;
+} DMA_DB_Mode_t;
 
 typedef struct
 {
-    DMA_DoubleBuffer_Mode_t mode; // 模式 0 = pwm+arr, 1 = oc+ccr
+    DMA_DB_Mode_t mode; // 模式 0 = pwm+arr, 1 = oc+ccr
 
     TIM_HandleTypeDef *htim;
     uint32_t tim_channel; // 定时器通道
