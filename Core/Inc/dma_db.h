@@ -1,11 +1,11 @@
 // motor_driver.h
-#ifndef __DMA_DOUBLEBUFFER_H
-#define __DMA_DOUBLEBUFFER_H
+#ifndef __DMA_Db_H
+#define __DMA_Db_H
 
 #include "stm32f1xx_hal.h"
 
 // ========== 配置参数 ==========
-#define BUFFER_SIZE 2048                    // 每个缓冲区256个脉冲
+#define DMA_DB_BUF_SIZE 512                   // 每个缓冲区256个脉冲
 #define CLK_PSC 1.0f                       // 时钟预分频数
 #define HAED_CLK_HZ 72000000.0f            // 硬件时钟频率
 #define SYS_CLK_HZ (HAED_CLK_HZ / CLK_PSC) // 时钟频率
@@ -16,15 +16,15 @@
 
 // ========== 数据结构 ==========
 
-typedef enum DMA_DoubleBuffer_Mode_t
+typedef enum DMA_DB_Mode_t
 {
-    PWM_ARR = 0,
-    OC_CCR = 1,
-} DMA_DoubleBuffer_Mode_t;
+    ARR = 0,
+    CCR = 1,
+} DMA_DB_Mode_t;
 
 typedef struct
 {
-    DMA_DoubleBuffer_Mode_t mode; // 模式 0 = pwm+arr, 1 = oc+ccr
+    DMA_DB_Mode_t mode; // 模式 0 = pwm+arr, 1 = oc+ccr
 
     TIM_HandleTypeDef *htim;
     uint32_t tim_channel; // 定时器通道
@@ -38,8 +38,8 @@ typedef struct
 
     // DMA缓冲区
     uint8_t hdma_id;
-    // uint16_t dma_buffer_size;         // DMA缓冲区大小
-    uint16_t dma_buffer[BUFFER_SIZE]; // DMA缓冲区
+    uint16_t dma_buf0[DMA_DB_BUF_SIZE]; // DMA缓冲区0
+    uint16_t dma_buf1[DMA_DB_BUF_SIZE]; // DMA缓冲区1
 
     volatile uint8_t active_buffer;    // 当前活动缓冲区（0或1）
     volatile uint8_t next_fill_buffer; // 下一次要填充的缓冲区(0填充前半区，1填充后半区，255表示已填充)
@@ -51,16 +51,16 @@ typedef struct
 
     volatile uint32_t fill_buffer_in_background_count;
 
-} DMA_DoubleBuffer_t;
+} DMA_DB_t;
 
-void dma_doublebuffer_init(DMA_DoubleBuffer_t *dma_doublebuffer);
-void dma_doublebuffer_fill(DMA_DoubleBuffer_t *dma_doublebuffer);
-void dma_doublebuffer_switch(DMA_DoubleBuffer_t *dma_doublebuffer);
-void dma_doublebuffer_fill_in_background(DMA_DoubleBuffer_t *dma_doublebuffer);
-// void dma_doublebuffer_check_and_adjust(DMA_DoubleBuffer_t *dma_doublebuffer);
-uint8_t dma_doublebuffer_check_finished(DMA_DoubleBuffer_t *dma_doublebuffer);
+void dma_db_init(DMA_DB_t *dma_db);
+void dma_db_fill(DMA_DB_t *dma_db);
+void dma_db_switch(DMA_DB_t *dma_db);
+void dma_db_fill_in_background(DMA_DB_t *dma_db);
+void dma_db_check_and_adjust(DMA_DB_t *dma_db);
+uint8_t dma_db_check_finished(DMA_DB_t *dma_db);
 
-uint32_t dma_doublebuffer_generate_t_arr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index);
-uint32_t dma_doublebuffer_generate_t_ccr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index);
+uint32_t dma_db_generate_t_arr(DMA_DB_t *dma_db, uint32_t pulse_index);
+uint32_t dma_db_generate_t_ccr(DMA_DB_t *dma_db, uint32_t pulse_index);
 
-#endif /* __DMA_DOUBLEBUFFER_H */
+#endif /* __DMA_Db_H */

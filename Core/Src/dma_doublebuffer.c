@@ -108,13 +108,21 @@ void dma_doublebuffer_fill(DMA_DoubleBuffer_t *dma_doublebuffer)
 
         if (dma_doublebuffer->mode == PWM_ARR)
         {
-            uint32_t arr32 = dma_doublebuffer_generate_t_arr(dma_doublebuffer, pulse_index);
-            temp_buffer[i] = (uint16_t)(arr32 & 0xFFFF);
+            if (dma_doublebuffer->pulses_filled >= dma_doublebuffer->total_pulses)
+            {
+                uint32_t arr32 = dma_doublebuffer_generate_t_arr(dma_doublebuffer, pulse_index);
+                temp_buffer[i] = (uint16_t)(arr32 & 0xFFFF);
+            }
+            else
+            {
+                temp_buffer[i] = 0;
+            }
         }
         else
         {
             // uint32_t ccr32 = dma_doublebuffer->g_last_accum + 4;
             // dma_doublebuffer->g_last_accum = ccr32;
+
             uint32_t ccr32 = dma_doublebuffer_generate_t_ccr(dma_doublebuffer, pulse_index);
             temp_buffer[i] = (uint16_t)(ccr32 & 0xFFFF);
         }
@@ -155,6 +163,17 @@ void dma_doublebuffer_fill_in_background(DMA_DoubleBuffer_t *dma_doublebuffer)
     dma_doublebuffer->next_fill_buffer = 0xFF;
 }
 
+void dma_doublebuffer_check_and_adjust(DMA_DoubleBuffer_t *dma_doublebuffer)
+{
+    uint32_t remaining_pulses = dma_doublebuffer->total_pulses - dma_doublebuffer->pulses_sent;
+    if (remaining_pulses < BUFFER_SIZE)
+    {
+        DMA_HandleTypeDef *hdma = dma_doublebuffer->htim->hdma[dma_doublebuffer->hdma_id];
+
+        hdma->Instance->CNDTR = remaining_pulses; // 设置DMA传输数量
+        hdma->Instance->CCR &= ~DMA_CCR_HTIE;     // 禁用半传输中断
+    }
+}
 
 uint8_t dma_doublebuffer_check_finished(DMA_DoubleBuffer_t *dma_doublebuffer)
 {
@@ -215,7 +234,7 @@ uint32_t dma_doublebuffer_generate_t_arr(DMA_DoubleBuffer_t *dma_doublebuffer, u
 uint32_t dma_doublebuffer_generate_t_ccr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t transfer_index)
 {
 
-    dma_doublebuffer->g_last_accum += 18;
+    dma_doublebuffer->g_last_accum += 100;
     return dma_doublebuffer->g_last_accum;
 
     // // 翻转模式下，传输两次才是个完整的脉冲

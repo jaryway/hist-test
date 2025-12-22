@@ -49,25 +49,22 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-// #define BUFFER_SIZE 1024
-static uint16_t dma_buffer[BUFFER_SIZE];
-static uint32_t g_ccr32 = 0;
-volatile uint8_t active_buffer = 0;
-volatile uint8_t next_fill_buffer = 0;
+
 static uint32_t half_count = 0;
 static uint32_t finished_count = 0;
 static uint8_t has_count_changed = 0;
+static uint32_t oc_it_count = 0;
 
 DMA_DoubleBuffer_t dma_doublebuffer_oc = {
     .mode = OC_CCR,
     .htim = &htim3,
     .tim_channel = TIM_CHANNEL_1,
     .hdma_id = TIM_DMA_ID_CC1,
-    .total_pulses = 256 * 10000 + 100, // 总脉冲
-    .accel_pulses = 64,                // 加速脉冲
-    .decel_pulses = 64,                // 减速脉冲
-    .max_rpm = 1000,                   // 电机最高转速
-    .pulses_per_rev = 3200,            // 16 细分
+    .total_pulses = 3200 * 3, // 总脉冲
+    .accel_pulses = 64,       // 加速脉冲
+    .decel_pulses = 64,       // 减速脉冲
+    .max_rpm = 1000,          // 电机最高转速
+    .pulses_per_rev = 3200,   // 16 细分
 };
 
 /* USER CODE END PV */
@@ -81,74 +78,6 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-void _fill_buffer()
-{
-  // uint16_t half_size = BUFFER_SIZE / 2;
-  // uint16_t ccr = 0;
-
-  // for (uint16_t i = 0; i < half_size; i++)
-  // {
-  //   g_ccr32 += 4;
-  //   ccr = (uint16_t)(g_ccr32 & 0xFFFF);
-
-  //   if (next_fill_buffer == 0)
-  //   {
-  //     dma_buffer[i] = ccr; // 填充前半区
-  //   }
-  //   else if (next_fill_buffer == 1)
-  //   {
-  //     dma_buffer[i + half_size] = ccr; // 填充后半区
-  //   }
-  // }
-  // next_fill_buffer = 0xFF;
-
-  /*  填充双缓冲区 */
-
-  uint16_t half_size = BUFFER_SIZE / 2;
-  uint16_t temp_buffer[half_size];
-
-  for (uint16_t i = 0; i < half_size; i++)
-  {
-    g_ccr32 += 4;
-    temp_buffer[i] = (uint16_t)(g_ccr32 & 0xFFFF);
-  }
-
-  if (next_fill_buffer == 0)
-  {
-    memcpy(&dma_buffer[0], temp_buffer, half_size * sizeof(uint16_t)); // 填充前半区
-  }
-  else if (next_fill_buffer == 1)
-  {
-    memcpy(&dma_buffer[half_size], temp_buffer, half_size * sizeof(uint16_t)); // 填充后半区
-  }
-
-  next_fill_buffer = 0xFF;
-}
-
-void _fill_buffer_in_background()
-{
-  // dma_doublebuffer->fill_buffer_in_background_count++;
-  if (next_fill_buffer == 0xFF)
-    return;
-
-  _fill_buffer();
-
-  next_fill_buffer = 0xFF;
-}
-
-void _switch_buffer()
-{
-  if (active_buffer == 0)
-  {
-    active_buffer = 1;
-    next_fill_buffer = 0;
-  }
-  else
-  {
-    active_buffer = 0;
-    next_fill_buffer = 1;
-  }
-}
 void prinf_dma_info(TIM_HandleTypeDef *htim, DMA_DoubleBuffer_t *dma_doublebuffer)
 {
   DMA_HandleTypeDef *hdma = htim->hdma[TIM_DMA_ID_CC1];
@@ -196,6 +125,7 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
     // dma_doublebuffer_check_and_adjust(&dma_doublebuffer_oc);
 
     dma_doublebuffer_switch(&dma_doublebuffer_oc);
+    // dma_doublebuffer_check_and_adjust(&dma_doublebuffer_oc);
   }
 }
 
@@ -225,8 +155,10 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
     // printf("HAL_TIM_OC_DelayElapsedCallback-tim3\r\n");
     // last_time_oc += 1200;
     // __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, last_time_oc);
-    uint32_t cnt = __HAL_TIM_GET_COUNTER(htim);
-    __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, cnt + 4);
+    // uint32_t cnt = __HAL_TIM_GET_COUNTER(htim);
+    // __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, cnt + 40);
+    oc_it_count++;
+    has_count_changed = 1;
   }
 }
 
@@ -314,6 +246,7 @@ int main(void)
 
   // htim3.hdma[TIM_DMA_ID_CC1]->Instance->CCR &= ~DMA_CCR_HTIE; // 禁用半传输中断
   // htim3.hdma[TIM_DMA_ID_CC1]->XferHalfCpltCallback = NULL;
+
   HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_doublebuffer_oc.dma_buffer, BUFFER_SIZE);
   //  __HAL_DMA_DISABLE_IT(htim3.hdma[TIM_DMA_ID_CC1], DMA_IT_HT);
   // htim3.hdma[TIM_DMA_ID_CC1]->Instance->CCR &= ~DMA_CCR_HTIE; // 禁用半传输中断
@@ -335,12 +268,14 @@ int main(void)
     /* USER CODE BEGIN 3 */
     // _fill_buffer_in_background();
     dma_doublebuffer_fill_in_background(&dma_doublebuffer_oc);
-    // if (has_count_changed)
-    // {
-    //   has_count_changed = 0;
-    //   // prinf_dma_info(&htim3, &dma_doublebuffer_oc);
-    //   printf("finished_count:%lu,half_count:%lu\r\n", finished_count, half_count);
-    // }
+    static uint32_t last_time = 0;
+    if (HAL_GetTick() - last_time > 1000 && has_count_changed)
+    {
+      has_count_changed = 0;
+      last_time = HAL_GetTick();
+      // prinf_dma_info(&htim3, &dma_doublebuffer_oc);
+      printf("finished_count:%lu,half_count:%lu,oc_it_count:%lu\r\n", finished_count, half_count, oc_it_count);
+    }
   }
   /* USER CODE END 3 */
 }
