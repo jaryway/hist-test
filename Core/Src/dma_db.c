@@ -4,7 +4,8 @@
 #include <stm32f1xx_hal_tim.h>
 #include <stdio.h>
 
-static float dma_db_generate_trapezoid_freq(DMA_DB_t *dma_db, uint32_t pulse_index)
+static uint8_t flag = 0;
+static float generate_trapezoid_freq(DMA_DB_t *dma_db, uint32_t pulse_index)
 {
     // 运动参数
     uint32_t total_pulses = dma_db->total_pulses;
@@ -67,36 +68,32 @@ void dma_db_init(DMA_DB_t *dma_db)
 {
     // dma_db_check_and_adjust(dma_db);
     // 使用 OC + CCR 模式时，初始化 last_accum
-    if (dma_db->mode == CCR)
+    if (dma_db->mode == OC_CCR)
     {
         /* align accumulator to current counter to ensure CCR timings are relative to TIM CNT */
         dma_db->g_last_accum = (uint64_t)__HAL_TIM_GET_COUNTER(dma_db->htim);
         dma_db->g_last_accum += 100ULL; /* small offset to avoid immediate match */
-        // uint16_t psc1 = dma_db->htim->Instance->PSC;
-        // printf("psc=%d\n", psc1);
-
-        // dma_db->tick_hz=
     }
 
     /* fill initial buffer - caller should update pulses_filled accordingly */
     /* 初始化时，两个缓冲区都填充数据 */
     dma_db->next_fill_buffer = 0;
-    dma_db_fill(dma_db);
+    dma_db_fill_buffer(dma_db);
     dma_db->next_fill_buffer = 1;
-    dma_db_fill(dma_db);
+    dma_db_fill_buffer(dma_db);
 
     dma_db->active_buffer = 0;
     dma_db->next_fill_buffer = 0xFF;
     dma_db->fill_buffer_in_background_count = 0;
 }
-void dma_db_fill(DMA_DB_t *dma_db)
+void dma_db_fill_buffer(DMA_DB_t *dma_db)
 {
     uint32_t start_index = dma_db->pulses_filled;
-    uint16_t buffer_size = DMA_DB_BUF_SIZE;
-    uint16_t temp_buffer[buffer_size];
-    uint16_t *dma_buffer = dma_db->dma_buf0;
+    uint16_t half_size = dma_db->buffer_size / 2;
+    uint16_t temp_buffer[half_size];
+    uint16_t *dma_buffer = dma_db->dma_buffer;
 
-    for (uint16_t i = 0; i < buffer_size; i++)
+    for (uint16_t i = 0; i < half_size; i++)
     {
         dma_db->pulses_filled++;
         uint32_t pulse_index = start_index + i;
@@ -106,7 +103,7 @@ void dma_db_fill(DMA_DB_t *dma_db)
             pulse_index = dma_db->total_pulses - 1;
         }
 
-        if (dma_db->mode == ARR)
+        if (dma_db->mode == PWM_ARR)
         {
             if (dma_db->pulses_filled >= dma_db->total_pulses)
             {
@@ -130,15 +127,15 @@ void dma_db_fill(DMA_DB_t *dma_db)
 
     if (dma_db->next_fill_buffer == 0)
     {
-        memcpy(&dma_db->dma_buf0[0], temp_buffer, buffer_size * sizeof(uint16_t)); // 填充前半区
+        memcpy(&dma_buffer[0], temp_buffer, half_size * sizeof(uint16_t)); // 填充前半区
     }
     else if (dma_db->next_fill_buffer == 1)
     {
-        memcpy(&dma_db->dma_buf0[0], temp_buffer, buffer_size * sizeof(uint16_t)); // 填充后半区
+        memcpy(&dma_buffer[half_size], temp_buffer, half_size * sizeof(uint16_t)); // 填充后半区
     }
 }
 
-void dma_db_switch(DMA_DB_t *dma_db)
+void dma_db_switch_buffer(DMA_DB_t *dma_db)
 {
     if (dma_db->active_buffer == 0)
     {
@@ -158,37 +155,43 @@ void dma_db_fill_in_background(DMA_DB_t *dma_db)
     if (dma_db->next_fill_buffer == 0xFF)
         return;
 
-    dma_db_fill(dma_db);
+    dma_db_fill_buffer(dma_db);
 
     dma_db->next_fill_buffer = 0xFF;
+    // dma_db_check_and_adjust(dma_db);
 }
 
 // void dma_db_check_and_adjust(DMA_DB_t *dma_db)
 // {
-//     uint32_t remaining_pulses = dma_db->total_pulses - dma_db->pulses_sent;
-//     if (remaining_pulses < DMA_DB_BUF_SIZE)
+//     uint32_t remaining_pulses = dma_db->total_pulses - dma_db->pulses_filled;
+
+//     if (remaining_pulses < MAX_BUFFER_SIZE && flag == 0)
 //     {
+//         flag = 1;
 //         DMA_HandleTypeDef *hdma = dma_db->htim->hdma[dma_db->hdma_id];
 
+//         printf("dma_db_check_and_adjust: remaining_pulses=%lu,CNDTR:%lu\n", remaining_pulses, hdma->Instance->CNDTR);
+//         // __HAL_DMA_DISABLE(hdma);
 //         hdma->Instance->CNDTR = remaining_pulses; // 设置DMA传输数量
-//         hdma->Instance->CCR &= ~DMA_CCR_HTIE;     // 禁用半传输中断
+//         // hdma->Instance->CCR &= ~DMA_CCR_HTIE;     // 禁用半传输中断
+//         // __HAL_DMA_ENABLE(hdma);
 //     }
 // }
 
 uint8_t dma_db_check_finished(DMA_DB_t *dma_db)
 {
-    uint32_t temp = dma_db->pulses_sent + DMA_DB_BUF_SIZE;
+    uint32_t temp = dma_db->pulses_sent + dma_db->buffer_size / 2;
 
     // 判断脉冲是否发送完成，如果已经发送完成，停止DMA传输
     if (temp >= dma_db->total_pulses)
     {
         dma_db->pulses_sent = dma_db->total_pulses; // 重新修正发送位置
-        if (dma_db->mode == ARR)
+        if (dma_db->mode == PWM_ARR)
         {
             HAL_TIM_PWM_Stop(dma_db->htim, dma_db->tim_channel);
             HAL_TIM_Base_Stop_DMA(dma_db->htim);
         }
-        else if (dma_db->mode == CCR)
+        else if (dma_db->mode == OC_CCR)
         {
             HAL_TIM_OC_Stop_DMA(dma_db->htim, dma_db->tim_channel);
         }
@@ -201,7 +204,7 @@ uint8_t dma_db_check_finished(DMA_DB_t *dma_db)
 
 uint32_t dma_db_generate_t_arr(DMA_DB_t *dma_db, uint32_t pulse_index)
 {
-    float freq_hz = dma_db_generate_trapezoid_freq(dma_db, pulse_index);
+    float freq_hz = generate_trapezoid_freq(dma_db, pulse_index);
 
     // const uint32_t SYS_CLK_HZ = 72000000; // 72MHz
     const float MAX_FREQ = 250000.0f; // 250KHz最大频率
@@ -234,7 +237,7 @@ uint32_t dma_db_generate_t_arr(DMA_DB_t *dma_db, uint32_t pulse_index)
 uint32_t dma_db_generate_t_ccr(DMA_DB_t *dma_db, uint32_t transfer_index)
 {
 
-    dma_db->g_last_accum += 100;
+    dma_db->g_last_accum += 30;
     return dma_db->g_last_accum;
 
     // // 翻转模式下，传输两次才是个完整的脉冲
@@ -259,7 +262,7 @@ uint32_t dma_db_generate_t_ccr(DMA_DB_t *dma_db, uint32_t transfer_index)
     //     return (uint32_t)(dma_db->g_last_accum & 0xFFFFFFFFUL);
     // }
 
-    // float freq_hz = dma_db_generate_trapezoid_freq(dma_db, step_index);
+    // float freq_hz = generate_trapezoid_freq(dma_db, step_index);
 
     // // return freq_hz;
     // // 防止除以零或极小值

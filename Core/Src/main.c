@@ -27,7 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <string.h>
-#include "dma_doublebuffer.h"
+#include "dma_db.h"
 
 /* USER CODE END Includes */
 
@@ -55,7 +55,7 @@ static uint32_t finished_count = 0;
 static uint8_t has_count_changed = 0;
 static uint32_t oc_it_count = 0;
 
-DMA_DoubleBuffer_t dma_doublebuffer_oc = {
+DMA_DB_t dma_db_oc = {
     .mode = OC_CCR,
     .htim = &htim3,
     .tim_channel = TIM_CHANNEL_1,
@@ -65,7 +65,6 @@ DMA_DoubleBuffer_t dma_doublebuffer_oc = {
     .decel_pulses = 64,       // 减速脉冲
     .max_rpm = 1000,          // 电机最高转速
     .pulses_per_rev = 3200,   // 16 细分
-    // .dma_buffer = {0},
     .buffer_size = 400,
 };
 
@@ -80,7 +79,7 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-void prinf_dma_info(TIM_HandleTypeDef *htim, DMA_DoubleBuffer_t *dma_doublebuffer)
+void prinf_dma_info(TIM_HandleTypeDef *htim, DMA_DB_t *dma_doublebuffer)
 {
   DMA_HandleTypeDef *hdma = htim->hdma[TIM_DMA_ID_CC1];
   if (hdma != NULL)
@@ -119,12 +118,11 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
     finished_count++;
     has_count_changed = 1;
 
-
-    // prinf_dma_info(htim, &dma_doublebuffer_oc);
-    if (dma_doublebuffer_check_finished(&dma_doublebuffer_oc))
+    // prinf_dma_info(htim, &dma_db_oc);
+    if (dma_db_check_finished(&dma_db_oc))
       return;
 
-    dma_doublebuffer_switch(&dma_doublebuffer_oc);
+    dma_db_switch_buffer(&dma_db_oc);
   }
 }
 
@@ -136,12 +134,12 @@ void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
     half_count++;
     has_count_changed = 1;
 
-    // prinf_dma_info(htim, &dma_doublebuffer_oc);
+    // prinf_dma_info(htim, &dma_db_oc);
 
-    if (dma_doublebuffer_check_finished(&dma_doublebuffer_oc))
+    if (dma_db_check_finished(&dma_db_oc))
       return;
 
-    dma_doublebuffer_switch(&dma_doublebuffer_oc);
+    dma_db_switch_buffer(&dma_db_oc);
   }
 }
 
@@ -225,7 +223,7 @@ int main(void)
   // _fill_buffer();
   // next_fill_buffer = 0xFF;
 
-  dma_doublebuffer_init(&dma_doublebuffer_oc);
+  dma_db_init(&dma_db_oc);
   // dma_db_init(&dma_db_oc);
   // uint16_t n = 0;
   // for (uint32_t i = 0; i < dma_db_oc.total_pulses; i++)
@@ -242,11 +240,11 @@ int main(void)
   //   {
   //     printf("Switch buffer, active_buffer:%u, next_fill_buffer:%u \r\n", //
   //            dma_db_oc.active_buffer, dma_db_oc.next_fill_buffer);
-  //     dma_db_switch(&dma_db_oc);
+  //     dma_db_switch_buffer(&dma_db_oc);
   //     printf("After switch buffer, active_buffer:%u, next_fill_buffer:%u \r\n", //
   //            dma_db_oc.active_buffer, dma_db_oc.next_fill_buffer);
   //     // uint8_t next_fill_buffer = dma_db_oc.next_fill_buffer;
-  //     // printf("dma_db_switch:%u\r\n", next_fill_buffer);
+  //     // printf("dma_db_switch_buffer:%u\r\n", next_fill_buffer);
   //     dma_db_fill_in_background(&dma_db_oc);
   //     n = 0;
   //   }
@@ -254,24 +252,23 @@ int main(void)
 
   // for (int i = 0; i < BUFFER_SIZE; i++)
   // {
-  //   printf("dma_buffer[%04u]: %u\r\n", i, dma_doublebuffer_oc.dma_buffer[i]);
+  //   printf("dma_buffer[%04u]: %u\r\n", i, dma_db_oc.dma_buffer[i]);
   // }
 
-  // for (uint32_t i = 0; i < dma_doublebuffer_oc.total_pulses; i++)
+  // for (uint32_t i = 0; i < dma_db_oc.total_pulses; i++)
   // {
-  //   uint32_t ccr = dma_doublebuffer_generate_t_ccr(&dma_doublebuffer_oc, i);
+  //   uint32_t ccr = dma_db_generate_t_ccr(&dma_db_oc, i);
   //   // printf("pulse_index[%04lu]: %lu\r\n", i, ccr);
   // }
 
   // DMA1_Channel1->CCR &= ~DMA_CCR_HTIE; // 禁用半传输中断
   // DMA1_Channel1->CCR |= DMA_CCR_HTIE; // 重新启用半传输中断
 
-
-  HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_doublebuffer_oc.dma_buffer, dma_doublebuffer_oc.buffer_size);
+  HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_db_oc.dma_buffer, dma_db_oc.buffer_size);
 
   //  __HAL_DMA_DISABLE_IT(htim3.hdma[TIM_DMA_ID_CC1], DMA_IT_HT);
   // htim3.hdma[TIM_DMA_ID_CC1]->Instance->CCR &= ~DMA_CCR_HTIE; // 禁用半传输中断
-  // dma_doublebuffer_check_and_adjust(&dma_doublebuffer_oc);
+  // dma_db_check_and_adjust(&dma_db_oc);
 
   // HAL_TIM_OC_Start_IT(&htim3, TIM_CHANNEL_1);
 
@@ -288,14 +285,14 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     // _fill_buffer_in_background();
-    dma_doublebuffer_fill_in_background(&dma_doublebuffer_oc);
+    dma_db_fill_in_background(&dma_db_oc);
     // dma_db_fill_in_background(&dma_db_oc);
     static uint32_t last_time = 0;
     if (HAL_GetTick() - last_time > 1000 && has_count_changed)
     {
       has_count_changed = 0;
       last_time = HAL_GetTick();
-      // prinf_dma_info(&htim3, &dma_doublebuffer_oc);
+      // prinf_dma_info(&htim3, &dma_db_oc);
       printf("finished_count:%lu,half_count:%lu,oc_it_count:%lu\r\n", finished_count, half_count, oc_it_count);
     }
   }
