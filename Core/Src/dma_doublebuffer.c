@@ -4,6 +4,7 @@
 #include <stm32f1xx_hal_tim.h>
 #include <stdio.h>
 
+static uint8_t flag = 0;
 static float generate_trapezoid_freq(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t pulse_index)
 {
     // 运动参数
@@ -92,7 +93,7 @@ void dma_doublebuffer_init(DMA_DoubleBuffer_t *dma_doublebuffer)
 void dma_doublebuffer_fill(DMA_DoubleBuffer_t *dma_doublebuffer)
 {
     uint32_t start_index = dma_doublebuffer->pulses_filled;
-    uint16_t half_size = BUFFER_SIZE / 2;
+    uint16_t half_size = dma_doublebuffer->buffer_size / 2;
     uint16_t temp_buffer[half_size];
     uint16_t *dma_buffer = dma_doublebuffer->dma_buffer;
 
@@ -161,23 +162,29 @@ void dma_doublebuffer_fill_in_background(DMA_DoubleBuffer_t *dma_doublebuffer)
     dma_doublebuffer_fill(dma_doublebuffer);
 
     dma_doublebuffer->next_fill_buffer = 0xFF;
+    // dma_doublebuffer_check_and_adjust(dma_doublebuffer);
 }
 
-void dma_doublebuffer_check_and_adjust(DMA_DoubleBuffer_t *dma_doublebuffer)
-{
-    uint32_t remaining_pulses = dma_doublebuffer->total_pulses - dma_doublebuffer->pulses_sent;
-    if (remaining_pulses < BUFFER_SIZE)
-    {
-        DMA_HandleTypeDef *hdma = dma_doublebuffer->htim->hdma[dma_doublebuffer->hdma_id];
+// void dma_doublebuffer_check_and_adjust(DMA_DoubleBuffer_t *dma_doublebuffer)
+// {
+//     uint32_t remaining_pulses = dma_doublebuffer->total_pulses - dma_doublebuffer->pulses_filled;
 
-        hdma->Instance->CNDTR = remaining_pulses; // 设置DMA传输数量
-        hdma->Instance->CCR &= ~DMA_CCR_HTIE;     // 禁用半传输中断
-    }
-}
+//     if (remaining_pulses < MAX_BUFFER_SIZE && flag == 0)
+//     {
+//         flag = 1;
+//         DMA_HandleTypeDef *hdma = dma_doublebuffer->htim->hdma[dma_doublebuffer->hdma_id];
+
+//         printf("dma_doublebuffer_check_and_adjust: remaining_pulses=%lu,CNDTR:%lu\n", remaining_pulses, hdma->Instance->CNDTR);
+//         // __HAL_DMA_DISABLE(hdma);
+//         hdma->Instance->CNDTR = remaining_pulses; // 设置DMA传输数量
+//         // hdma->Instance->CCR &= ~DMA_CCR_HTIE;     // 禁用半传输中断
+//         // __HAL_DMA_ENABLE(hdma);
+//     }
+// }
 
 uint8_t dma_doublebuffer_check_finished(DMA_DoubleBuffer_t *dma_doublebuffer)
 {
-    uint32_t temp = dma_doublebuffer->pulses_sent + BUFFER_SIZE / 2;
+    uint32_t temp = dma_doublebuffer->pulses_sent + dma_doublebuffer->buffer_size / 2;
 
     // 判断脉冲是否发送完成，如果已经发送完成，停止DMA传输
     if (temp >= dma_doublebuffer->total_pulses)
@@ -234,7 +241,7 @@ uint32_t dma_doublebuffer_generate_t_arr(DMA_DoubleBuffer_t *dma_doublebuffer, u
 uint32_t dma_doublebuffer_generate_t_ccr(DMA_DoubleBuffer_t *dma_doublebuffer, uint32_t transfer_index)
 {
 
-    dma_doublebuffer->g_last_accum += 100;
+    dma_doublebuffer->g_last_accum += 30;
     return dma_doublebuffer->g_last_accum;
 
     // // 翻转模式下，传输两次才是个完整的脉冲
