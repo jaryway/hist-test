@@ -50,6 +50,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     # ${CMAKE_SOURCE_DIR}/Core/Src/dma_doublebuffer.c
     ${CMAKE_SOURCE_DIR}/Core/Src/dma_db.c
+    ${CMAKE_SOURCE_DIR}/Core/Src/motor.c
 )
 
 # Add include paths

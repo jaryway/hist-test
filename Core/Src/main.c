@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "dma_db.h"
+#include "motor.h"
 
 /* USER CODE END Includes */
 
@@ -38,6 +39,10 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
+#define PI 3.1415926  /* 圆周率*/
+#define FSPR 200      /* 步进电机单圈步数 */
+#define MICRO_STEP 16 /* 步进电机驱动器细分数 */
 
 /* USER CODE END PD */
 
@@ -55,17 +60,11 @@ static uint32_t finished_count = 0;
 static uint8_t has_count_changed = 0;
 static uint32_t oc_it_count = 0;
 
-DMA_DB_t dma_db_oc = {
-    .mode = OC_CCR,
-    .htim = &htim3,
-    .tim_channel = TIM_CHANNEL_1,
-    .hdma_id = TIM_DMA_ID_CC1,
-    .total_pulses = 3200 * 6, // 总脉冲
-    .accel_pulses = 64,       // 加速脉冲
-    .decel_pulses = 64,       // 减速脉冲
-    .max_rpm = 1000,          // 电机最高转速
-    .pulses_per_rev = 3200,   // 16 细分
-};
+DMA_DB_t dma_db_oc;
+
+Motor_t motor = {STOP, CW, 0, 0, 0, 0, 0, 0, 0, 0};
+
+
 
 /* USER CODE END PV */
 
@@ -77,6 +76,56 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+void print_motor_profile()
+{
+  uint16_t L = 1650;                                          // 导轨有效行程
+  uint16_t C = 125;                                           // 同步轮 T5-25 转一周周长
+  uint8_t reduction_ratio = 12;                               // 减速比
+  uint16_t max_rpm = 3000;                                    // 电机额定转速 3000 RPM
+  uint16_t steps_per_rev = FSPR * MICRO_STEP;                 // 电机转一圈所需的步数 3200步/圈
+  float steps_per_sec = max_rpm * steps_per_rev / 60.0f;      // 最大速度 单位 steps/sec;  160000步/s
+  float deg_per_sec = max_rpm * 360.0f / 60.0f;               // 最大角速度 deg/s
+  float rad_per_sec = max_rpm * 2.0f * PI / 60.0f;            // 最大角速度 rad/s
+  float steps_per_mm = (reduction_ratio * steps_per_rev) / C; // 1mm 电机需要转的步数  307.2 步/mm
+  float total_steps = steps_per_mm * L;                       // 总步数
+  float mm_per_step = 1.0f / steps_per_mm;                    // 每步对应的 mm 数 0.003255 mm/步
+  float accel_distance = 300.0f;                              // 加速距离 单位 mm
+  float accel_time = 1.0f;                                    // 加速时间 单位 s
+  float accel_steps = accel_distance * steps_per_mm;          // 加速步数 92160
+
+  float accel_steps_per_sec2 = 2.0f * accel_steps / (accel_time * accel_time);   // 加速度 单位 steps/sec^2 18432 steps/s²
+  float accel_deg_per_sec2 = accel_steps_per_sec2 * (360.0f / steps_per_rev);    // 加速度 单位 deg/sec^2 2073.6 deg/s²
+  float accel_rad_per_sec2 = accel_steps_per_sec2 * (2.0f * PI / steps_per_rev); // 加速度 单位 rad/sec^2 36.1 rad/s²
+
+  float step_interval_sec = 1.0f / steps_per_sec;          // 步间隔时间（秒）
+  float step_interval_us = step_interval_sec * 1000000.0f; // 6.25 微秒
+
+  // 打印计算结果
+  printf("=== Motor Motion Parameters ===\r\n");
+  printf("Guide rail travel: %d mm\r\n", L);                    // 导轨有效行程
+  printf("Synchronous wheel circumference: %d mm\r\n", C);      // 同步轮周长
+  printf("Reduction ratio: %d\r\n", reduction_ratio);           // 减速比
+  printf("Motor rated speed: %d RPM\r\n", max_rpm);             // 电机额定转速
+  printf("Steps per revolution: %d steps\r\n", steps_per_rev);  // 电机步数/圈
+  printf("Max step speed: %.2f steps/sec\r\n", steps_per_sec);  // 最大步进速度
+  printf("Steps per mm: %.2f steps/mm\r\n", steps_per_mm);      // 每mm对应的步数
+  printf("mm per step: %.6f mm/step\r\n", mm_per_step);         // 每步对应的mm数
+  printf("Total steps: %.2f \r\n", total_steps);                // 总步数
+  printf("Acceleration distance: %.2f mm\r\n", accel_distance); // 加速距离
+  printf("Acceleration time: %.0f sec\r\n", accel_time);        // 加速时间
+  printf("Acceleration steps: %.2f steps\r\n", accel_steps);    // 加速步数
+  printf("=== Acceleration Parameters ===\r\n");
+  printf("Step acceleration: %.2f steps/s²\r\n", accel_steps_per_sec2); // 加速度 单位 steps/s²
+  printf("Angular acceleration: %.2f deg/s²\r\n", accel_deg_per_sec2);  // 加速度 单位 deg/s²
+  printf("Radial acceleration: %.2f rad/s²\r\n", accel_rad_per_sec2);   // 加速度 单位 rad/s²
+  printf("=== Max Speed Conversion ===\r\n");
+  printf("Max degree speed: %.2f deg/s\r\n", deg_per_sec);        // 最大角速度 deg/s
+  printf("Max radian speed: %.2f rad/s\r\n", rad_per_sec);        // 最大角速度 rad/s
+  printf("Max step speed: %.2f steps/s\r\n", steps_per_sec);      // 最大步进速度 steps/s
+  printf("Step-to-step interval: %.2f μs\r\n", step_interval_us); // 最大速度时的步间隔时间
+  printf("========================\r\n");
+}
 
 void prinf_dma_info(TIM_HandleTypeDef *htim, DMA_DB_t *dma_doublebuffer)
 {
@@ -117,11 +166,12 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
     finished_count++;
     has_count_changed = 1;
 
-    // prinf_dma_info(htim, &dma_db_oc);
-    if (dma_db_check_finished(&dma_db_oc))
-      return;
+    // // prinf_dma_info(htim, &dma_db_oc);
+    // if (dma_db_check_finished(&dma_db_oc))
+    //   return;
 
-    dma_db_switch_buffer(&dma_db_oc);
+    // dma_db_switch_buffer(&dma_db_oc);
+    dma_db_transfer_complete_cb_handle(&dma_db_oc);
   }
 }
 
@@ -135,10 +185,11 @@ void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
 
     // prinf_dma_info(htim, &dma_db_oc);
 
-    if (dma_db_check_finished(&dma_db_oc))
-      return;
+    // if (dma_db_check_finished(&dma_db_oc))
+    //   return;
 
-    dma_db_switch_buffer(&dma_db_oc);
+    // dma_db_switch_buffer(&dma_db_oc);
+    dma_db_half_transfer_cb_handle(&dma_db_oc);
   }
 }
 
@@ -163,7 +214,7 @@ int _write(int file, char *ptr, int len)
   if (__get_IPSR() != 0)
   {
     // 在中断中，使用较短的超时时间
-    HAL_UART_Transmit(&huart3, (uint8_t *)ptr, len, 100);
+    HAL_UART_Transmit(&huart3, (uint8_t *)ptr, len, 2000);
   }
   else
   {
@@ -212,6 +263,32 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   printf("System start\r\n");
+  // HAL_Delay(1000);
+  print_motor_profile();
+  int32_t pulses = 506550;    // 总步数
+  uint32_t accel = 3616.8;    // 加速度 rad/s² X10 后
+  uint32_t decel = 3616.8;    // 加速度 rad/s² X10 后
+  // uint32_t speed = 3141.5926; // 速度 rad/s X10 后
+  uint32_t speed = 1200; // 速度 rad/s X10 后
+  // 输出的   max_s_lim = 69478
+  // 预期的 accel_steps = 92160
+
+  // dma_db_init(&dma_db_oc);
+
+  // 1、初始化电机
+  motor_init(&motor);
+  motor_attach(&motor, GPIOB, GPIO_PIN_4, DIR_GPIO_Port, DIR_Pin, ENA_GPIO_Port, ENA_Pin);
+  motor_attach_timer(&motor, &htim3, TIM_CHANNEL_1);
+  motor_create_t_ctrl_param(&motor, pulses, accel, decel, speed);
+  motor_oc_start_dma(&motor, &dma_db_oc);
+  // while (motor.run_state != STOP)
+  // {
+  //   HAL_Delay(50);
+  //   calc_step_delay(&motor);
+  //   printf("motor run_state:%u\r\n", motor.run_state);
+  //   printf("add_pulse_count:%lu\r\n", motor.add_pulse_count);
+  //   printf("step_delay:%lu\r\n", motor.step_delay);
+  // }
 
   // uint32_t cnt = __HAL_TIM_GET_COUNTER(&htim3);
   // g_ccr32 = __HAL_TIM_GET_COUNTER(&htim3);
@@ -222,7 +299,7 @@ int main(void)
   // _fill_buffer();
   // next_fill_buffer = 0xFF;
 
-  dma_db_init(&dma_db_oc);
+  // dma_db_init(&dma_db_oc);
   // dma_db_init(&dma_db_oc);
   // uint16_t n = 0;
   // for (uint32_t i = 0; i < dma_db_oc.total_pulses; i++)
@@ -263,7 +340,7 @@ int main(void)
   // DMA1_Channel1->CCR &= ~DMA_CCR_HTIE; // 禁用半传输中断
   // DMA1_Channel1->CCR |= DMA_CCR_HTIE; // 重新启用半传输中断
 
-  HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_db_oc.dma_buffer, dma_db_oc.buffer_size);
+  // HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_db_oc.dma_buffer, dma_db_oc.buffer_size);
 
   //  __HAL_DMA_DISABLE_IT(htim3.hdma[TIM_DMA_ID_CC1], DMA_IT_HT);
   // htim3.hdma[TIM_DMA_ID_CC1]->Instance->CCR &= ~DMA_CCR_HTIE; // 禁用半传输中断
@@ -291,7 +368,7 @@ int main(void)
       has_count_changed = 0;
       last_time = HAL_GetTick();
       // prinf_dma_info(&htim3, &dma_db_oc);
-      printf("finished_count:%lu,half_count:%lu,oc_it_count:%lu\r\n", finished_count, half_count, oc_it_count);
+      // printf("finished_count:%lu,half_count:%lu,oc_it_count:%lu\r\n", finished_count, half_count, oc_it_count);
     }
   }
   /* USER CODE END 3 */
