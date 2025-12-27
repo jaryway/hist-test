@@ -10,13 +10,10 @@ static void _dma_db_fill_buffer(DMA_DB_t *dma_db)
     uint16_t half_size = dma_db->buffer_size / 2;
     uint16_t temp_buffer[half_size];
     uint16_t *dma_buffer = dma_db->dma_buffer;
-    uint8_t n = 0;
 
-    for (uint16_t i = 0; i < half_size; i++)
-    {
+    for (uint16_t i = 0; i < half_size; i++) {
 
-        if (dma_db->mode == PWM_ARR)
-        {
+        if (dma_db->mode == PWM_ARR) {
             // uint32_t pulse_index = start_index + i;
 
             // if (pulse_index >= dma_db->total_pulses)
@@ -27,9 +24,7 @@ static void _dma_db_fill_buffer(DMA_DB_t *dma_db)
             // uint32_t arr32 = dma_db_generate_t_arr(dma_db, pulse_index);
             // temp_buffer[i] = (uint16_t)(arr32 & 0xFFFF);
             // dma_db->pulses_filled++;
-        }
-        else
-        {
+        } else {
             int32_t step_delay = 1000;
             if (dma_db->on_fill_buffer)
                 step_delay = dma_db->on_fill_buffer(dma_db->callback_context);
@@ -42,52 +37,34 @@ static void _dma_db_fill_buffer(DMA_DB_t *dma_db)
         }
     }
 
-    if (dma_db->next_fill_buffer == 0)
-    {
+    if (dma_db->next_fill_buffer == 0) {
         memcpy(&dma_buffer[0], temp_buffer, half_size * sizeof(uint16_t)); // 填充前半区
-    }
-    else if (dma_db->next_fill_buffer == 1)
-    {
+    } else if (dma_db->next_fill_buffer == 1) {
         memcpy(&dma_buffer[half_size], temp_buffer, half_size * sizeof(uint16_t)); // 填充后半区
     }
 }
 
 static void _dma_db_switch_buffer(DMA_DB_t *dma_db)
 {
-    if (dma_db->active_buffer == 0)
-    {
-        dma_db->active_buffer = 1;
+    if (dma_db->active_buffer == 0) {
+        dma_db->active_buffer    = 1;
         dma_db->next_fill_buffer = 0;
-    }
-    else
-    {
-        dma_db->active_buffer = 0;
+    } else {
+        dma_db->active_buffer    = 0;
         dma_db->next_fill_buffer = 1;
     }
 }
 
 void dma_db_start(DMA_DB_t *dma_db)
 {
-    // dma_db_check_and_adjust(dma_db);
-    // 使用 OC + CCR 模式时，初始化 last_accum
-    // if (dma_db->mode == OC_CCR)
-    // {
-    //     /* align accumulator to current counter to ensure CCR timings are relative to TIM CNT */
-    //     dma_db->g_last_accum = (uint64_t)__HAL_TIM_GET_COUNTER(dma_db->htim);
-    //     dma_db->g_last_accum += 10ULL; /* small offset to avoid immediate match */
-    // }
 
-    if (dma_db->total_data > MAX_DMA_BUFFER_SIZE)
-    {
+    if (dma_db->total_data > MAX_DMA_BUFFER_SIZE) {
         uint16_t buffer_size = MAX_DMA_BUFFER_SIZE;
-        while (dma_db->total_data % buffer_size != 0)
-        {
+        while (dma_db->total_data % buffer_size != 0) {
             buffer_size--;
         }
         dma_db->buffer_size = buffer_size; // 确保总脉冲数能被缓冲区大小整除
-    }
-    else
-    {
+    } else {
         dma_db->buffer_size = dma_db->total_data;
     }
 
@@ -95,24 +72,32 @@ void dma_db_start(DMA_DB_t *dma_db)
     dma_db->next_fill_buffer = 0;
     _dma_db_fill_buffer(dma_db);
 
-    if (dma_db->total_data > dma_db->buffer_size / 2)
-    {
+    if (dma_db->total_data > dma_db->buffer_size / 2) {
         dma_db->next_fill_buffer = 1;
         _dma_db_fill_buffer(dma_db);
     }
 
-    dma_db->active_buffer = 0;
-    dma_db->next_fill_buffer = 0xFF;
-    dma_db->transfered_data = 0;
+    dma_db->active_buffer                   = 0;
+    dma_db->next_fill_buffer                = 0xFF;
+    dma_db->transfered_data                 = 0;
     dma_db->fill_buffer_in_background_count = 0;
 
-    if (dma_db->mode == PWM_ARR)
-    {
+    printf("buffer_size: %u\r\n", dma_db->buffer_size);
+    printf("total_data: %lu\r\n", dma_db->total_data);
+
+    if (dma_db->mode == PWM_ARR) {
         HAL_TIM_PWM_Start_DMA(dma_db->htim, dma_db->tim_channel, (uint32_t *)dma_db->dma_buffer, dma_db->buffer_size);
-    }
-    else if (dma_db->mode == OC_CCR)
-    {
+    } else if (dma_db->mode == OC_CCR) {
         HAL_TIM_OC_Start_DMA(dma_db->htim, dma_db->tim_channel, (uint32_t *)dma_db->dma_buffer, dma_db->buffer_size);
+    }
+}
+
+void dma_db_stop(DMA_DB_t *dma_db)
+{
+    if (dma_db->mode == PWM_ARR) {
+        HAL_TIM_PWM_Stop_DMA(dma_db->htim, dma_db->tim_channel);
+    } else if (dma_db->mode == OC_CCR) {
+        HAL_TIM_OC_Stop_DMA(dma_db->htim, dma_db->tim_channel);
     }
 }
 
@@ -135,21 +120,16 @@ void dma_db_transfer_complete_cb_handle(DMA_DB_t *dma_db)
 {
     uint32_t temp = dma_db->transfered_data + dma_db->buffer_size / 2;
     // 判断脉冲是否发送完成，如果已经发送完成，停止DMA传输
-    if (temp >= dma_db->total_data)
-    {
+    if (temp >= dma_db->total_data) {
         dma_db->transfered_data = dma_db->total_data; // 重新修正发送位置
-        if (dma_db->mode == PWM_ARR)
-        {
+        if (dma_db->mode == PWM_ARR) {
             HAL_TIM_PWM_Stop(dma_db->htim, dma_db->tim_channel);
             HAL_TIM_Base_Stop_DMA(dma_db->htim);
-        }
-        else if (dma_db->mode == OC_CCR)
-        {
+        } else if (dma_db->mode == OC_CCR) {
             HAL_TIM_OC_Stop_DMA(dma_db->htim, dma_db->tim_channel);
         }
 
-        if (dma_db->transfer_complete_callback != NULL)
-        {
+        if (dma_db->transfer_complete_callback != NULL) {
             dma_db->transfer_complete_callback(dma_db->callback_context);
         }
 

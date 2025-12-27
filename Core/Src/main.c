@@ -65,7 +65,7 @@ DMA_DB_t dma_db_oc;
 Motor_t motor = {STOP, CW, 0, 0, 0, 0, 0, 0, 0, 0};
 
 Profile_t motor42_profile = {
-    .max_rpm          = 2100,     // 最高转速
+    .max_rpm          = 1500,     // 最高转速
     .steps_per_rev    = 200 * 16, // 16细分
     .reduction_ratio  = 1,        // 减速比
     .accel_time       = 0.5,      // 加速时间 ms
@@ -324,26 +324,6 @@ int main(void)
         printf("  speed:  %lu (rad/sec * 10)\r\n", t_ctrl_param.speed);
     }
 
-    // TCtrlParam_t t_ctrl_param = motor_profile_2_t_ctrl_param(motor42_profile);
-
-    // printf("Motor TCtrlParam:\r\n");
-    // printf("  pulses: %ld\r\n", t_ctrl_param.pulses);
-    // printf("  accel:  %lu (rad/sec² * 10)\r\n", t_ctrl_param.accel);
-    // printf("  decel:  %lu (rad/sec² * 10)\r\n", t_ctrl_param.decel);
-    // printf("  speed:  %lu (rad/sec * 10)\r\n", t_ctrl_param.speed);
-
-    // HAL_Delay(1000);
-    // print_motor_profile();
-    // int32_t pulses = 506550; // 总步数
-    // uint32_t accel = 3616.8; // 加速度 rad/s² X10 后
-    // uint32_t decel = 3616.8; // 加速度 rad/s² X10 后
-    // uint32_t speed = 3141.5926; // 速度 rad/s X10 后
-    // uint32_t speed = 1200; // 速度 rad/s X10 后
-    // 输出的   max_s_lim = 69478
-    // 预期的 accel_steps = 92160
-
-    // dma_db_init(&dma_db_oc);
-
     // 1、初始化电机
     TCtrlParam_t t_ctrl_param = motor_profile_2_t_ctrl_param(motor42_profile);
     motor_init(&motor);
@@ -351,70 +331,12 @@ int main(void)
     motor_attach_timer(&motor, &htim3, TIM_CHANNEL_1);
     motor_create_t_ctrl_param(&motor, t_ctrl_param.pulses, t_ctrl_param.accel, t_ctrl_param.decel, t_ctrl_param.speed);
     motor_oc_start_dma(&motor, &dma_db_oc);
-    // while (motor.run_state != STOP)
-    // {
-    //   HAL_Delay(50);
-    //   calc_step_delay(&motor);
-    //   printf("motor run_state:%u\r\n", motor.run_state);
-    //   printf("add_pulse_count:%lu\r\n", motor.add_pulse_count);
-    //   printf("step_delay:%lu\r\n", motor.step_delay);
-    // }
-
-    // uint32_t cnt = __HAL_TIM_GET_COUNTER(&htim3);
-    // g_ccr32 = __HAL_TIM_GET_COUNTER(&htim3);
-
-    // next_fill_buffer = 0;
-    // _fill_buffer();
-    // next_fill_buffer = 1;
-    // _fill_buffer();
-    // next_fill_buffer = 0xFF;
-
-    // dma_db_init(&dma_db_oc);
-    // dma_db_init(&dma_db_oc);
-    // uint16_t n = 0;
-    // for (uint32_t i = 0; i < dma_db_oc.total_pulses; i++)
-    // {
-
-    //   uint16_t *dma_buffer = dma_db_oc.active_buffer == 0 ? dma_db_oc.dma_buf0 : dma_db_oc.dma_buf1;
-
-    //   printf("pulse_index[%04lu]: %u,active_buffer:%u\r\n", i, dma_buffer[n], //
-    //          dma_db_oc.active_buffer);
-
-    //   n++;
-
-    //   if ((i + 1) % (DMA_DB_BUF_SIZE) == 0)
-    //   {
-    //     printf("Switch buffer, active_buffer:%u, next_fill_buffer:%u \r\n", //
-    //            dma_db_oc.active_buffer, dma_db_oc.next_fill_buffer);
-    //     dma_db_switch_buffer(&dma_db_oc);
-    //     printf("After switch buffer, active_buffer:%u, next_fill_buffer:%u \r\n", //
-    //            dma_db_oc.active_buffer, dma_db_oc.next_fill_buffer);
-    //     // uint8_t next_fill_buffer = dma_db_oc.next_fill_buffer;
-    //     // printf("dma_db_switch_buffer:%u\r\n", next_fill_buffer);
-    //     dma_db_fill_in_background(&dma_db_oc);
-    //     n = 0;
-    //   }
-    // }
-
-    // for (int i = 0; i < BUFFER_SIZE; i++)
-    // {
-    //   printf("dma_buffer[%04u]: %u\r\n", i, dma_db_oc.dma_buffer[i]);
-    // }
-
-    // for (uint32_t i = 0; i < dma_db_oc.total_pulses; i++)
-    // {
-    //   uint32_t ccr = dma_db_generate_t_ccr(&dma_db_oc, i);
-    //   // printf("pulse_index[%04lu]: %lu\r\n", i, ccr);
-    // }
+    motor_oc_stop_dma(&motor, &dma_db_oc);
 
     // DMA1_Channel1->CCR &= ~DMA_CCR_HTIE; // 禁用半传输中断
     // DMA1_Channel1->CCR |= DMA_CCR_HTIE; // 重新启用半传输中断
 
     // HAL_TIM_OC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)dma_db_oc.dma_buffer, dma_db_oc.buffer_size);
-
-    //  __HAL_DMA_DISABLE_IT(htim3.hdma[TIM_DMA_ID_CC1], DMA_IT_HT);
-    // htim3.hdma[TIM_DMA_ID_CC1]->Instance->CCR &= ~DMA_CCR_HTIE; // 禁用半传输中断
-    // dma_db_check_and_adjust(&dma_db_oc);
 
     // HAL_TIM_OC_Start_IT(&htim3, TIM_CHANNEL_1);
 
@@ -430,7 +352,7 @@ int main(void)
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
-        if (motor.run_state == STOP) {
+        if (motor.motion_sta == 0) {
             HAL_Delay(100);
             // motor_set_reversed_dir(&motor);
             uint32_t pulses = _dir == 0 ? -t_ctrl_param.pulses : t_ctrl_param.pulses;

@@ -5,21 +5,20 @@
 #include "stm32f1xx_hal.h"
 
 // ========== 配置参数 ==========
-#define MAX_DMA_BUFFER_SIZE 512            // 每个缓冲区256个脉冲
-#define CLK_PSC 1.0f                       // 时钟预分频数
-#define HAED_CLK_HZ 72000000.0f            // 硬件时钟频率
-#define SYS_CLK_HZ (HAED_CLK_HZ / CLK_PSC) // 时钟频率
-#define MIN_CCR_VALUE 10                   // 最小CCR值（对应最大频率）
-#define MAX_CCR_VALUE 65536                // 最大CCR值（对应最小频率）
-#define MAX_ARR_VALUE 65536                // 最大ARR值（对应最大频率）
-#define MIN_ARR_VALUE 288                  // 最小ARR值（对应最小频率）
+#define MAX_DMA_BUFFER_SIZE 1024                    // 每个缓冲区256个脉冲
+#define CLK_PSC             1.0f                    // 时钟预分频数
+#define HAED_CLK_HZ         72000000.0f             // 硬件时钟频率
+#define SYS_CLK_HZ          (HAED_CLK_HZ / CLK_PSC) // 时钟频率
+#define MIN_CCR_VALUE       10                      // 最小CCR值（对应最大频率）
+#define MAX_CCR_VALUE       65536                   // 最大CCR值（对应最小频率）
+#define MAX_ARR_VALUE       65536                   // 最大ARR值（对应最大频率）
+#define MIN_ARR_VALUE       288                     // 最小ARR值（对应最小频率）
 
 // ========== 数据结构 ==========
 
-typedef enum DMA_DB_Mode_t
-{
+typedef enum DMA_DB_Mode_t {
     PWM_ARR = 0,
-    OC_CCR = 1,
+    OC_CCR  = 1,
 } DMA_DB_Mode_t;
 
 typedef struct
@@ -28,14 +27,6 @@ typedef struct
 
     TIM_HandleTypeDef *htim;
     uint32_t tim_channel; // 定时器通道
-
-    // uint32_t max_rpm;     // 电机最高转速
-    // float pulses_per_rev; // 脉冲数/圈
-
-    // uint32_t total_pulses; // 总脉冲数
-    // uint32_t accel_pulses; // 加速脉冲数
-    // uint32_t decel_pulses; // 减速脉冲数
-
     // DMA缓冲区
     uint8_t hdma_id;
     uint16_t buffer_size;                     // DMA缓冲区大小
@@ -55,16 +46,11 @@ typedef struct
 } DMA_DB_t;
 
 void dma_db_start(DMA_DB_t *dma_db);
-// void _dma_db_fill_buffer(DMA_DB_t *dma_db);
-// void _dma_db_switch_buffer(DMA_DB_t *dma_db);
+void dma_db_stop(DMA_DB_t *dma_db);
+
 void dma_db_fill_in_background(DMA_DB_t *dma_db);
-// uint8_t dma_db_check_finished(DMA_DB_t *dma_db);
-// void dma_db_transfer_start(DMA_DB_t *dma_db);
+
 void dma_db_half_transfer_cb_handle(DMA_DB_t *dma_db);
 void dma_db_transfer_complete_cb_handle(DMA_DB_t *dma_db);
-
-// uint32_t dma_db_generate_t_arr(DMA_DB_t *dma_db, uint32_t pulse_index);
-// uint32_t dma_db_generate_t_ccr(DMA_DB_t *dma_db, uint32_t pulse_index);
-// uint32_t dma_db_generate_t_step_delay(DMA_DB_t *dma_db, uint32_t pulse_index);
 
 #endif /* __DMA_DB_H */
