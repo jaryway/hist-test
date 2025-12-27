@@ -6,13 +6,6 @@
 
 // ========== 配置参数 ==========
 #define MAX_DMA_BUFFER_SIZE 1024                    // 每个缓冲区256个脉冲
-#define CLK_PSC             1.0f                    // 时钟预分频数
-#define HAED_CLK_HZ         72000000.0f             // 硬件时钟频率
-#define SYS_CLK_HZ          (HAED_CLK_HZ / CLK_PSC) // 时钟频率
-#define MIN_CCR_VALUE       10                      // 最小CCR值（对应最大频率）
-#define MAX_CCR_VALUE       65536                   // 最大CCR值（对应最小频率）
-#define MAX_ARR_VALUE       65536                   // 最大ARR值（对应最大频率）
-#define MIN_ARR_VALUE       288                     // 最小ARR值（对应最小频率）
 
 // ========== 数据结构 ==========
 
