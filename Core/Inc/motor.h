@@ -21,6 +21,12 @@
 #define A_SQ        ((float)(2 * 100000 * ALPHA))
 #define A_x200      ((float)(200 * ALPHA)) /* 2*10*10*a/10 */
 
+typedef enum {
+    OC_IT   = 0,
+    OC_DMA  = 1,
+    PWM_IT  = 2,
+    PWM_DMA = 3
+} RunMode_t;
 typedef struct
 {
     __IO uint8_t run_state;         /* 电机旋转状态 */
@@ -55,6 +61,8 @@ typedef struct
     uint32_t tim_channel; // 定时器通道
 
     uint32_t total_pulses; /* 目标移动总步数 */
+
+    RunMode_t run_mode; // 运行模式
 
 } Motor_t;
 
@@ -93,9 +101,13 @@ void motor_set_reversed_dir(Motor_t *motor);
 void motor_oc_start_dma(Motor_t *motor, DMA_DB_t *dma_db);
 void motor_oc_stop_dma(Motor_t *motor, DMA_DB_t *dma_db);
 
+void motor_oc_start_it(Motor_t *motor);
+void motor_oc_stop_it(Motor_t *motor);
+
 // void motor_start(uint8_t motor_num);                                                                      /* 开启步进电机 */
 // void motor_stop(uint8_t motor_num);                                                                       /* 关闭步进电机 */
 void motor_create_t_ctrl_param(Motor_t *motor, int32_t pulses, uint32_t accel, uint32_t decel, uint32_t speed); /* 梯形加减速控制函数 */
-void calc_step_delay(Motor_t *motor);                                                                           /* 计算下一个脉冲周期 */
+
+void motor_oc_it_cb_handle(Motor_t *motor);
 
 #endif /* __MOTOR_H */

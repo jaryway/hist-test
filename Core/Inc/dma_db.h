@@ -43,7 +43,7 @@ void dma_db_stop(DMA_DB_t *dma_db);
 
 void dma_db_fill_in_background(DMA_DB_t *dma_db);
 
-void dma_db_half_transfer_cb_handle(DMA_DB_t *dma_db);
-void dma_db_transfer_complete_cb_handle(DMA_DB_t *dma_db);
+void dma_db_half_transfer_it_cb_handle(DMA_DB_t *dma_db);
+void dma_db_transfer_complete_it_cb_handle(DMA_DB_t *dma_db);
 
 #endif /* __DMA_DB_H */

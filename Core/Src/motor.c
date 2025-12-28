@@ -3,12 +3,14 @@
 #include <math.h>
 #include <stdio.h>
 
-// static void _motor_stop(Motor_t *motor)
-// {
-//     /* 关闭通道*/
-//     // HAL_TIM_OC_Stop_IT(&g_atimx_handle, ATIM_TIMX_PWM_CH1);
-//     // ST1_EN(EN_OFF);
-// }
+static void _motor_stop(Motor_t *motor)
+{
+    if (motor->run_mode == OC_IT) {
+        HAL_TIM_OC_Stop_IT(motor->htim, motor->tim_channel);
+        // ST1_EN(EN_OFF);
+        motor->motion_sta = 0; /* 电机为停止状态  */
+    }
+}
 
 /**
  * @brief 电机旋转方向设置
@@ -23,6 +25,109 @@ static void _motor_dir_set(Motor_t *motor)
         GPIO_PinState pin_state = (GPIO_PinState)(motor->reversed_dir ^ GPIO_PIN_RESET);
         HAL_GPIO_WritePin(motor->dir_port, motor->dir_pin, pin_state);
     }
+}
+
+static void _calc_step_delay(Motor_t *motor)
+{
+    // __IO uint32_t tim_count = 0;
+    // __IO uint32_t tmp = 0;
+
+    // __IO static uint16_t last_accel_delay = 0; /* 加速过程中最后一次延时（脉冲周期） */
+    // __IO static uint32_t step_count = 0; /* 总移动步数计数器*/
+    // __IO static int32_t rest = 0; /* 记录new_step_delay中的余数，提高下一步计算的精度 */
+    // __IO static uint8_t ___i = 0;    /* 定时器使用翻转模式，需要进入两次中断才输出一个完整脉冲 */
+
+    // tim_count = __HAL_TIM_GET_COUNTER(&g_atimx_handle);
+    // tmp = tim_count + motor->step_delay / 2; /* 整个C值里边是需要翻转两次的所以需要除以2 */
+    //
+    // __HAL_TIM_SET_COMPARE(&g_atimx_handle, ATIM_TIMX_PWM_CH1, tmp);
+
+    motor->___i++; /* 定时器中断次数计数值 */
+
+    if (motor->___i != 2)
+        return;
+
+    uint16_t new_step_delay = 0; /* 保存新（下）一个延时周期 */
+
+    motor->___i = 0;          /* 清零定时器中断次数计数值 */
+    switch (motor->run_state) /* 加减速曲线阶段 */
+    {
+        case STOP:
+            motor->step_count = 0; /* 清零步数计数器 */
+            motor->rest       = 0; /* 清零余值 */
+            /* 关闭通道*/
+            // HAL_TIM_OC_Stop_IT(&g_atimx_handle, ATIM_TIMX_PWM_CH1);
+            // ST1_EN(EN_OFF);
+            // motor->motion_sta = 0; /* 电机为停止状态  */
+            _motor_stop(motor);
+
+            break;
+
+        case ACCEL:
+            motor->add_pulse_count++; /* 只用于记录相对位置转动了多少度 */
+            motor->step_count++;      /* 步数加1*/
+            if (motor->dir == CW) {
+                motor->step_position++; /* 绝对位置加1  记录绝对位置转动多少度*/
+            } else {
+                motor->step_position--; /* 绝对位置减1*/
+            }
+            motor->accel_count++;                                                                                          /* 加速计数值加1*/
+            new_step_delay = motor->step_delay - (((2 * motor->step_delay) + motor->rest) / (4 * motor->accel_count + 1)); /* 计算新(下)一步脉冲周期(时间间隔) */
+            motor->rest    = ((2 * motor->step_delay) + motor->rest) % (4 * motor->accel_count + 1);                       /* 计算余数，下次计算补上余数，减少误差 */
+            if (motor->step_count >= motor->decel_start)                                                                   /* 检查是否到了需要减速的步数 */
+            {
+                motor->accel_count = motor->decel_val; /* 加速计数值为减速阶段计数值的初始值 */
+                motor->run_state   = DECEL;            /* 下个脉冲进入减速阶段 */
+            } else if (new_step_delay <= motor->min_delay) {
+                /* 检查是否到达期望的最大速度 计数值越小速度越快，当你的速度和最大速度相等或更快就进入匀速*/
+                motor->last_accel_delay = new_step_delay;   /* 保存加速过程中最后一次延时（脉冲周期）*/
+                new_step_delay          = motor->min_delay; /* 使用min_delay（对应最大速度speed）*/
+                motor->rest             = 0;                /* 清零余值 */
+                motor->run_state        = RUN;              /* 设置为匀速运行状态 */
+            }
+            break;
+
+        case RUN:
+            motor->add_pulse_count++;
+            motor->step_count++; /* 步数加1 */
+            if (motor->dir == CW) {
+                motor->step_position++; /* 绝对位置加1 */
+            } else {
+                motor->step_position--; /* 绝对位置减1*/
+            }
+            new_step_delay = motor->min_delay;           /* 使用min_delay（对应最大速度speed）*/
+            if (motor->step_count >= motor->decel_start) /* 需要开始减速 */
+            {
+                motor->accel_count = motor->decel_val;        /* 减速步数做为加速计数值 */
+                new_step_delay     = motor->last_accel_delay; /* 加阶段最后的延时做为减速阶段的起始延时(脉冲周期) */
+                motor->run_state   = DECEL;                   /* 状态改变为减速 */
+            }
+            break;
+
+        case DECEL:
+            motor->step_count++; /* 步数加1 */
+            motor->add_pulse_count++;
+            if (motor->dir == CW) {
+                motor->step_position++; /* 绝对位置加1 */
+            } else {
+                motor->step_position--; /* 绝对位置减1 */
+            }
+            motor->accel_count++;
+            new_step_delay = motor->step_delay - (((2 * motor->step_delay) + motor->rest) / (4 * motor->accel_count + 1)); /* 计算新(下)一步脉冲周期(时间间隔) */
+            motor->rest    = ((2 * motor->step_delay) + motor->rest) % (4 * motor->accel_count + 1);                       /* 计算余数，下次计算补上余数，减少误差 */
+
+            /* 检查是否为最后一步 */
+            if (motor->accel_count >= 0) /* 判断减速步数是否从负值加到0是的话 减速完成 */
+            {
+                motor->run_state  = STOP; /* 设置状态为停止 */
+                motor->step_count = 0;    /* 清零步数计数器 */
+                motor->rest       = 0;    /* 清零余值 */
+                // motor->motion_sta = 0; /* 电机为停止状态  */
+                _motor_stop(motor);
+            }
+            break;
+    }
+    motor->step_delay = new_step_delay; /* 为下个(新的)延时(脉冲周期)赋值 */
 }
 
 /* 步进电机接口初始化 */
@@ -85,7 +190,7 @@ void motor_oc_dma_transfer_complete(void *context)
 int32_t motor_oc_dma_on_fill_buffer(void *context)
 {
     Motor_t *motor = (Motor_t *)context;
-    calc_step_delay(motor);
+    _calc_step_delay(motor);
     return motor->step_delay;
 }
 
@@ -101,19 +206,28 @@ void motor_oc_start_dma(Motor_t *motor, DMA_DB_t *dma_db)
     dma_db->transfer_complete_callback = motor_oc_dma_transfer_complete;
     dma_db->on_fill_buffer             = motor_oc_dma_on_fill_buffer;
 
-    dma_db_start(dma_db);
-}
+    motor->run_mode = OC_DMA;
 
-void motor_oc_start_it(Motor_t *motor)
-{
-    motor->motion_sta = 1;
-    HAL_TIM_OC_Stop_IT(motor->htim, motor->tim_channel);
+    dma_db_start(dma_db);
 }
 
 void motor_oc_stop_dma(Motor_t *motor, DMA_DB_t *dma_db)
 {
     motor->motion_sta = 0;
     dma_db_stop(dma_db);
+}
+
+void motor_oc_start_it(Motor_t *motor)
+{
+    motor->motion_sta = 1;
+    motor->run_mode   = OC_IT;
+    HAL_TIM_OC_Start_IT(motor->htim, motor->tim_channel);
+}
+
+void motor_oc_stop_it(Motor_t *motor)
+{
+    HAL_TIM_OC_Stop_IT(motor->htim, motor->tim_channel);
+    motor->motion_sta = 0;
 }
 
 /*
@@ -209,109 +323,11 @@ void motor_create_t_ctrl_param(Motor_t *motor, int32_t pulses, uint32_t accel, u
     printf("step_delay = %ld (tim counts)\n", motor->step_delay);
 }
 
-void calc_step_delay(Motor_t *motor)
+void motor_oc_it_cb_handle(Motor_t *motor)
 {
-    // __IO uint32_t tim_count = 0;
-    // __IO uint32_t tmp = 0;
+    uint32_t tim_count = __HAL_TIM_GET_COUNTER(motor->htim);
+    uint32_t tmp       = tim_count + motor->step_delay / 2; /* 整个C值里边是需要翻转两次的所以需要除以2 */
+    __HAL_TIM_SET_COMPARE(motor->htim, motor->tim_channel, tmp);
 
-    // __IO static uint16_t last_accel_delay = 0; /* 加速过程中最后一次延时（脉冲周期） */
-    // __IO static uint32_t step_count = 0; /* 总移动步数计数器*/
-    // __IO static int32_t rest = 0; /* 记录new_step_delay中的余数，提高下一步计算的精度 */
-    // __IO static uint8_t ___i = 0;    /* 定时器使用翻转模式，需要进入两次中断才输出一个完整脉冲 */
-
-    // tim_count = __HAL_TIM_GET_COUNTER(&g_atimx_handle);
-    // tmp = tim_count + motor->step_delay / 2; /* 整个C值里边是需要翻转两次的所以需要除以2 */
-    //
-    // __HAL_TIM_SET_COMPARE(&g_atimx_handle, ATIM_TIMX_PWM_CH1, tmp);
-
-    motor->___i++; /* 定时器中断次数计数值 */
-
-    if (motor->___i != 2)
-        return;
-
-    uint16_t new_step_delay = 0; /* 保存新（下）一个延时周期 */
-
-    motor->___i = 0;          /* 清零定时器中断次数计数值 */
-    switch (motor->run_state) /* 加减速曲线阶段 */
-    {
-        case STOP:
-            motor->step_count = 0; /* 清零步数计数器 */
-            motor->rest       = 0; /* 清零余值 */
-            /* 关闭通道*/
-            // HAL_TIM_OC_Stop_IT(&g_atimx_handle, ATIM_TIMX_PWM_CH1);
-            // ST1_EN(EN_OFF);
-            // _motor_stop(motor);
-            // motor->motion_sta = 0; /* 电机为停止状态  */
-            break;
-
-        case ACCEL:
-            motor->add_pulse_count++; /* 只用于记录相对位置转动了多少度 */
-            motor->step_count++;      /* 步数加1*/
-            if (motor->dir == CW) {
-                motor->step_position++; /* 绝对位置加1  记录绝对位置转动多少度*/
-            } else {
-                motor->step_position--; /* 绝对位置减1*/
-            }
-            motor->accel_count++;                                                                                          /* 加速计数值加1*/
-            new_step_delay = motor->step_delay - (((2 * motor->step_delay) + motor->rest) / (4 * motor->accel_count + 1)); /* 计算新(下)一步脉冲周期(时间间隔) */
-            motor->rest    = ((2 * motor->step_delay) + motor->rest) % (4 * motor->accel_count + 1);                       /* 计算余数，下次计算补上余数，减少误差 */
-            if (motor->step_count >= motor->decel_start)                                                                   /* 检查是否到了需要减速的步数 */
-            {
-                motor->accel_count = motor->decel_val; /* 加速计数值为减速阶段计数值的初始值 */
-                motor->run_state   = DECEL;            /* 下个脉冲进入减速阶段 */
-            } else if (new_step_delay <= motor->min_delay) {
-                /* 检查是否到达期望的最大速度 计数值越小速度越快，当你的速度和最大速度相等或更快就进入匀速*/
-                motor->last_accel_delay = new_step_delay;   /* 保存加速过程中最后一次延时（脉冲周期）*/
-                new_step_delay          = motor->min_delay; /* 使用min_delay（对应最大速度speed）*/
-                motor->rest             = 0;                /* 清零余值 */
-                motor->run_state        = RUN;              /* 设置为匀速运行状态 */
-            }
-            break;
-
-        case RUN:
-            motor->add_pulse_count++;
-            motor->step_count++; /* 步数加1 */
-            if (motor->dir == CW) {
-                motor->step_position++; /* 绝对位置加1 */
-            } else {
-                motor->step_position--; /* 绝对位置减1*/
-            }
-            new_step_delay = motor->min_delay;           /* 使用min_delay（对应最大速度speed）*/
-            if (motor->step_count >= motor->decel_start) /* 需要开始减速 */
-            {
-                motor->accel_count = motor->decel_val;        /* 减速步数做为加速计数值 */
-                new_step_delay     = motor->last_accel_delay; /* 加阶段最后的延时做为减速阶段的起始延时(脉冲周期) */
-                motor->run_state   = DECEL;                   /* 状态改变为减速 */
-            }
-            break;
-
-        case DECEL:
-            motor->step_count++; /* 步数加1 */
-            motor->add_pulse_count++;
-            if (motor->dir == CW) {
-                motor->step_position++; /* 绝对位置加1 */
-            } else {
-                motor->step_position--; /* 绝对位置减1 */
-            }
-            motor->accel_count++;
-            new_step_delay = motor->step_delay - (((2 * motor->step_delay) + motor->rest) / (4 * motor->accel_count + 1)); /* 计算新(下)一步脉冲周期(时间间隔) */
-            motor->rest    = ((2 * motor->step_delay) + motor->rest) % (4 * motor->accel_count + 1);                       /* 计算余数，下次计算补上余数，减少误差 */
-
-            /* 检查是否为最后一步 */
-            if (motor->accel_count >= 0) /* 判断减速步数是否从负值加到0是的话 减速完成 */
-            {
-                motor->run_state  = STOP; /* 设置状态为停止 */
-                motor->step_count = 0;    /* 清零步数计数器 */
-                motor->rest       = 0;    /* 清零余值 */
-                // _motor_stop(motor);
-                // motor->motion_sta = 0; /* 电机为停止状态  */
-            }
-            break;
-    }
-    motor->step_delay = new_step_delay; /* 为下个(新的)延时(脉冲周期)赋值 */
-
-    // if (motor->___i == 2) /* 2次，说明已经输出一个完整脉冲 */
-    // {
-
-    // }
+    _calc_step_delay(motor);
 }

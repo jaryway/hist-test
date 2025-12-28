@@ -32,8 +32,11 @@ static void _dma_db_fill_buffer(DMA_DB_t *dma_db)
             if (step_delay < 0)
                 step_delay = 0;
 
-            dma_db->g_last_accum += (uint64_t)step_delay;
-            temp_buffer[i] = (uint16_t)(dma_db->g_last_accum & 0xFFFF);
+            uint16_t next_val_16 = (uint16_t)((dma_db->g_last_accum + step_delay) & 0xFFFF);
+            dma_db->g_last_accum = next_val_16;
+
+            // printf("cnt=%u\r\n", dma_db->g_last_accum);
+            temp_buffer[i] = dma_db->g_last_accum;
         }
     }
 
@@ -112,11 +115,12 @@ void dma_db_fill_in_background(DMA_DB_t *dma_db)
     dma_db->next_fill_buffer = 0xFF;
 }
 
-void dma_db_half_transfer_cb_handle(DMA_DB_t *dma_db)
+void dma_db_half_transfer_it_cb_handle(DMA_DB_t *dma_db)
 {
     _dma_db_switch_buffer(dma_db);
 }
-void dma_db_transfer_complete_cb_handle(DMA_DB_t *dma_db)
+
+void dma_db_transfer_complete_it_cb_handle(DMA_DB_t *dma_db)
 {
     uint32_t temp = dma_db->transfered_data + dma_db->buffer_size / 2;
     // 判断脉冲是否发送完成，如果已经发送完成，停止DMA传输
