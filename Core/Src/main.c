@@ -68,7 +68,10 @@ static uint32_t oc_it_count      = 0;
 
 DMA_DB_t dma_db_oc;
 
-Motor_t motor = {STOP, CW, 0, 0, 0, 0, 0, 0, 0, 0};
+Motor_t motor = {
+    .run_state = STOP,
+    .pulses    = 0,
+};
 
 Profile_t motor42_profile = {
     .max_rpm          = 1400,     // 最高转速
@@ -407,7 +410,7 @@ int main(void)
             last_time         = HAL_GetTick();
             // HAL_Delay(50);
             delay_ms_with_dma_service(50, &dma_db_oc);
-            last_time         = HAL_GetTick();
+            last_time = HAL_GetTick();
 
             // prinf_dma_info(&htim3, &dma_db_oc);
             // printf("finished_count:%lu,half_count:%lu,oc_it_count:%lu\r\n", finished_count, half_count, oc_it_count);

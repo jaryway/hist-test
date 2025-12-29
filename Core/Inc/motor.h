@@ -42,7 +42,7 @@ typedef struct
     __IO uint16_t last_accel_delay; /* 加速过程中最后一次延时（脉冲周期） */
     __IO uint32_t step_count;       /* 总移动步数计数器*/
     __IO int32_t rest;              /* 记录new_step_delay中的余数，提高下一步计算的精度 */
-    __IO uint8_t ___i;              /* 定时器使用翻转模式，需要进入两次中断才输出一个完整脉冲 */
+    // __IO uint8_t ___i;              /* 定时器使用翻转模式，需要进入两次中断才输出一个完整脉冲 */
 
     GPIO_TypeDef *en_port;
     GPIO_TypeDef *step_port;
@@ -63,12 +63,12 @@ typedef struct
     RunMode_t run_mode;    // 运行模式
     uint32_t total_pulses; /* 目标移动总步数 */
 
-    int32_t pulses;
+    int32_t pulses; /* 带方向的目标移动总步数 */
     uint32_t accel;
     uint32_t decel;
     uint32_t max_speed;
 
-     uint8_t half_phase;
+    uint8_t half_phase;
 
 } Motor_t;
 
@@ -119,5 +119,7 @@ void motor_oc_stop_it(Motor_t *motor);
 // void motor_create_t_ctrl_param(Motor_t *motor); /* 梯形加减速控制函数 */
 
 void motor_oc_it_cb_handle(Motor_t *motor);
+
+uint8_t motor_is_stopped(Motor_t *motor);
 
 #endif /* __MOTOR_H */

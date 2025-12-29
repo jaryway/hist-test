@@ -394,6 +394,8 @@ void motor_oc_dma_transfer_complete(void *context)
     // 停止电机操作
     // HAL_TIM_OC_Stop_DMA(motor->htim, motor->tim_channel);
     motor->motion_sta = 0;
+    motor->run_state  = STOP;
+    motor->run_mode   = OC_DMA;
     printf("Motor stopped. Total run time: %lu ms\r\n", HAL_GetTick() - start_time);
     printf("DMA transfer completed for motor\r\n");
 }
@@ -418,7 +420,8 @@ void motor_oc_start_dma(Motor_t *motor, DMA_DB_t *dma_db)
     dma_db->hdma_id                    = TIM_DMA_ID_CC1;
     dma_db->htim                       = motor->htim;
     dma_db->tim_channel                = motor->tim_channel;
-    dma_db->total_data                 = motor->total_pulses;
+    dma_db->total_data                 = motor->total_pulses * 2;
+    dma_db->transfered_data            = 0;
     dma_db->callback_context           = motor;
     dma_db->transfer_complete_callback = motor_oc_dma_transfer_complete;
     dma_db->on_fill_buffer             = motor_oc_dma_on_fill_buffer;
@@ -458,4 +461,9 @@ void motor_oc_it_cb_handle(Motor_t *motor)
 
     // _calc_step_delay(motor);
     _motor_on_half_event(motor);
+}
+
+uint8_t motor_is_stopped(Motor_t *motor)
+{
+    return (motor->motion_sta == 0);
 }

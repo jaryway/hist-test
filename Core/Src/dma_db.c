@@ -163,16 +163,6 @@ void dma_db_stop(DMA_DB_t *dma_db)
 
 void dma_db_fill_in_background(DMA_DB_t *dma_db)
 {
-    // if (dma_db->transfered_data >= dma_db->total_data)
-    //     return;
-
-    // dma_db->fill_buffer_in_background_count++;
-
-    // if (dma_db->next_fill_buffer == 0xFF)
-    //     return;
-
-    // _dma_db_fill_buffer(dma_db);
-    // dma_db->next_fill_buffer = 0xFF;
 
     if (dma_db->transfered_data >= dma_db->total_data || dma_db->filling)
         return;
@@ -207,7 +197,7 @@ void dma_db_half_transfer_it_cb_handle(DMA_DB_t *dma_db)
 
 void dma_db_transfer_complete_it_cb_handle(DMA_DB_t *dma_db)
 {
-    uint32_t temp = dma_db->transfered_data + dma_db->buffer_size / 2;
+    uint32_t temp = dma_db->transfered_data + dma_db->buffer_size;
     // 判断脉冲是否发送完成，如果已经发送完成，停止DMA传输
     if (temp >= dma_db->total_data) {
         dma_db->transfered_data = dma_db->total_data; // 重新修正发送位置
