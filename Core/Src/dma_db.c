@@ -218,3 +218,21 @@ void dma_db_transfer_complete_it_cb_handle(DMA_DB_t *dma_db)
     dma_db->transfered_data = temp;
     _dma_db_switch_buffer(dma_db);
 }
+
+uint32_t dma_db_get_sent_elements(const DMA_DB_t *db)
+{
+    DMA_HandleTypeDef *hdma = db->htim->hdma[db->hdma_id];
+    if (hdma == NULL) return 0;
+
+    uint32_t cndtr         = hdma->Instance->CNDTR; // 当前循环剩余元素数
+    uint32_t sent_in_round = (db->buffer_size >= cndtr) ? (db->buffer_size - cndtr) : 0;
+
+    return db->transfered_data + sent_in_round; // 全局已发送元素数
+}
+
+uint32_t dma_db_get_remaining_elements(const DMA_DB_t *db)
+{
+    uint32_t sent = dma_db_get_sent_elements(db);
+    if (sent >= db->total_data) return 0;
+    return db->total_data - sent;
+}

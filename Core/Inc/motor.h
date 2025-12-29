@@ -108,18 +108,17 @@ void motor_set_accel(Motor_t *motor, uint32_t accel_rad_per_sec2_x10);
 void motor_set_decel(Motor_t *motor, uint32_t decel_rad_per_sec2_x10);
 void motor_set_max_speed(Motor_t *motor, uint32_t speed_rad_per_sec_x10);
 
+uint32_t motor_get_sent_steps_dma(Motor_t *motor, const DMA_DB_t *db);
+uint32_t motor_get_remaining_steps_dma(Motor_t *motor, const DMA_DB_t *db);
+
 void motor_oc_start_dma(Motor_t *motor, DMA_DB_t *dma_db);
 void motor_oc_stop_dma(Motor_t *motor, DMA_DB_t *dma_db);
 
 void motor_oc_start_it(Motor_t *motor);
 void motor_oc_stop_it(Motor_t *motor);
 
-// void motor_start(uint8_t motor_num);                                                                      /* 开启步进电机 */
-// void motor_stop(uint8_t motor_num);                                                                       /* 关闭步进电机 */
-// void motor_create_t_ctrl_param(Motor_t *motor); /* 梯形加减速控制函数 */
+uint8_t motor_is_stopped(Motor_t *motor);
 
 void motor_oc_it_cb_handle(Motor_t *motor);
-
-uint8_t motor_is_stopped(Motor_t *motor);
 
 #endif /* __MOTOR_H */

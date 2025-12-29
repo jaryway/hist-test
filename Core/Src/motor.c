@@ -386,6 +386,23 @@ void motor_set_max_speed(Motor_t *motor, uint32_t speed_rad_per_sec_x10)
     motor->max_speed = speed_rad_per_sec_x10;
 }
 
+uint32_t motor_get_sent_steps_dma(Motor_t *motor, const DMA_DB_t *db)
+{
+    (void)motor;
+    const uint32_t events_per_step = 2u;
+
+    uint32_t sent_events = dma_db_get_sent_elements(db);
+    return sent_events / events_per_step;
+}
+
+uint32_t motor_get_remaining_steps_dma(Motor_t *motor, const DMA_DB_t *db)
+{
+    // motor->total_pulses 是目标步数（完整脉冲数）
+    uint32_t sent_steps = motor_get_sent_steps_dma(motor, db);
+    if (sent_steps >= (uint32_t)motor->total_pulses) return 0;
+    return (uint32_t)motor->total_pulses - sent_steps;
+}
+
 // 添加回调函数实现
 void motor_oc_dma_transfer_complete(void *context)
 {

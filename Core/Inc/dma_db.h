@@ -49,4 +49,7 @@ void dma_db_fill_in_background(DMA_DB_t *dma_db);
 void dma_db_half_transfer_it_cb_handle(DMA_DB_t *dma_db);
 void dma_db_transfer_complete_it_cb_handle(DMA_DB_t *dma_db);
 
+uint32_t dma_db_get_sent_elements(const DMA_DB_t *db);
+uint32_t dma_db_get_remaining_elements(const DMA_DB_t *db);
+
 #endif /* __DMA_DB_H */
