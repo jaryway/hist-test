@@ -57,9 +57,9 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define ENA_Pin       GPIO_PIN_4
+#define ENA_Pin GPIO_PIN_3
 #define ENA_GPIO_Port GPIOB
-#define DIR_Pin       GPIO_PIN_5
+#define DIR_Pin GPIO_PIN_5
 #define DIR_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */

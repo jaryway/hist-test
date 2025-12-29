@@ -48,7 +48,7 @@
 #define OC_DMA     1
 #define PWM_IT     2
 #define PWM_DMA    3
-#define RUN_MODE   OC_IT
+#define RUN_MODE   OC_DMA
 
 /* USER CODE END PD */
 
@@ -71,12 +71,12 @@ DMA_DB_t dma_db_oc;
 Motor_t motor = {STOP, CW, 0, 0, 0, 0, 0, 0, 0, 0};
 
 Profile_t motor42_profile = {
-    .max_rpm          = 1800,     // 最高转速
+    .max_rpm          = 1400,     // 最高转速
     .steps_per_rev    = 200 * 16, // 16细分
     .reduction_ratio  = 1,        // 减速比
-    .accel_time       = 0.5,      // 加速时间 ms
-    .decel_time       = 0.6,      // 减速时间 ms
-    .travel_distance  = 450 * 4,  // 导轨有效行程
+    .accel_time       = 0.6,      // 加速时间 ms
+    .decel_time       = 0.3,      // 减速时间 ms
+    .travel_distance  = 450 * 5,  // 导轨有效行程
     .distance_per_rev = 40,       // T2-20 齿,转一周周长:20*2=40mm
 };
 
@@ -136,6 +136,17 @@ TCtrlParam_t motor_profile_2_t_ctrl_param(Profile_t pro)
     t_ctrl_param.max_speed = (uint32_t)(max_speed * 10.0f); // 速度 rad/s X10 后
 
     return t_ctrl_param;
+}
+void delay_ms_with_dma_service(uint32_t ms, DMA_DB_t *dma_db)
+{
+    uint32_t t0 = HAL_GetTick();
+    while ((uint32_t)(HAL_GetTick() - t0) < ms) {
+        dma_db_fill_in_background(dma_db);
+
+        // 可选：如果你希望更省电/更少空转，可以开 WFI
+        // 但前提是 DMA 半传输/全传输中断、SysTick 等能唤醒
+        __WFI();
+    }
 }
 
 void print_motor_profile()
@@ -255,13 +266,21 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
         // __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, cnt + 40);
 #if RUN_MODE == OC_IT
         // uint32_t cnt = __HAL_TIM_GET_COUNTER(htim);
-        // __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, cnt + 1000);
+        // __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, cnt + 15);
         // printf("cnt=%lu\r\n", cnt);
         motor_oc_it_cb_handle(&motor);
 #endif
 
         oc_it_count++;
         has_count_changed = 1;
+    }
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    if (htim->Instance == TIM2) {
+        // printf("HAL_TIM_PeriodElapsedCallback-tim2\r\n");
+        // dma_db_fill_in_background(&dma_db_oc);
     }
 }
 
@@ -315,6 +334,7 @@ int main(void)
     MX_USART1_UART_Init();
     MX_USART2_UART_Init();
     MX_USART3_UART_Init();
+    MX_TIM2_Init();
     /* USER CODE BEGIN 2 */
 
     printf("System start\r\n");
@@ -385,6 +405,10 @@ int main(void)
         if (HAL_GetTick() - last_time > 1000 && has_count_changed) {
             has_count_changed = 0;
             last_time         = HAL_GetTick();
+            // HAL_Delay(50);
+            delay_ms_with_dma_service(50, &dma_db_oc);
+            last_time         = HAL_GetTick();
+
             // prinf_dma_info(&htim3, &dma_db_oc);
             // printf("finished_count:%lu,half_count:%lu,oc_it_count:%lu\r\n", finished_count, half_count, oc_it_count);
         }

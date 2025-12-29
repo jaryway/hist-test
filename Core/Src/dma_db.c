@@ -4,12 +4,24 @@
 #include <stm32f1xx_hal_tim.h>
 #include <stdio.h>
 
+uint32_t start_time;
+
 static void _dma_db_fill_buffer(DMA_DB_t *dma_db)
 {
     // uint32_t start_index = dma_db->pulses_filled;
     uint16_t half_size = dma_db->buffer_size / 2;
-    uint16_t temp_buffer[half_size];
+    // uint16_t temp_buffer[half_size] __attribute__((aligned(32)));
+
     uint16_t *dma_buffer = dma_db->dma_buffer;
+
+    uint16_t *dst = NULL;
+    if (dma_db->next_fill_buffer == 0) {
+        dst = &dma_buffer[0];
+    } else if (dma_db->next_fill_buffer == 1) {
+        dst = &dma_buffer[half_size];
+    } else {
+        return; // next_fill_buffer == 0xFF 或非法
+    }
 
     for (uint16_t i = 0; i < half_size; i++) {
 
@@ -36,31 +48,43 @@ static void _dma_db_fill_buffer(DMA_DB_t *dma_db)
             dma_db->g_last_accum = next_val_16;
 
             // printf("cnt=%u\r\n", dma_db->g_last_accum);
-            temp_buffer[i] = dma_db->g_last_accum;
+            // temp_buffer[i] = dma_db->g_last_accum;
+            dst[i] = dma_db->g_last_accum;
         }
     }
 
     if (dma_db->next_fill_buffer == 0) {
-        memcpy(&dma_buffer[0], temp_buffer, half_size * sizeof(uint16_t)); // 填充前半区
+        // memcpy(&dma_buffer[0], temp_buffer, half_size * sizeof(uint16_t)); // 填充前半区
+        dma_db->dma_buffer_0_filled = 1;
     } else if (dma_db->next_fill_buffer == 1) {
-        memcpy(&dma_buffer[half_size], temp_buffer, half_size * sizeof(uint16_t)); // 填充后半区
+        // memcpy(&dma_buffer[half_size], temp_buffer, half_size * sizeof(uint16_t)); // 填充后半区
+        dma_db->dma_buffer_1_filled = 1;
     }
 }
 
 static void _dma_db_switch_buffer(DMA_DB_t *dma_db)
 {
     if (dma_db->active_buffer == 0) {
-        dma_db->active_buffer    = 1;
+        dma_db->active_buffer       = 1;
+        dma_db->dma_buffer_0_filled = 0;
+        if (dma_db->dma_buffer_1_filled != 1) {
+            // printf("Warning: DMA buffer 1 not filled in time!\r\n");
+        }
         dma_db->next_fill_buffer = 0;
     } else {
-        dma_db->active_buffer    = 0;
+        dma_db->active_buffer       = 0;
+        dma_db->dma_buffer_1_filled = 0;
+        if (dma_db->dma_buffer_0_filled != 1) {
+            // printf("Warning: DMA buffer 0 not filled in time!\r\n");
+        }
         dma_db->next_fill_buffer = 1;
     }
 }
 
 void dma_db_start(DMA_DB_t *dma_db)
 {
-
+    dma_db->dma_buffer_0_filled = 0;
+    dma_db->dma_buffer_1_filled = 0;
     if (dma_db->total_data > MAX_DMA_BUFFER_SIZE) {
         uint16_t buffer_size = MAX_DMA_BUFFER_SIZE;
         while (dma_db->total_data % buffer_size != 0) {
@@ -91,6 +115,7 @@ void dma_db_start(DMA_DB_t *dma_db)
     if (dma_db->mode == PWM_ARR) {
         HAL_TIM_PWM_Start_DMA(dma_db->htim, dma_db->tim_channel, (uint32_t *)dma_db->dma_buffer, dma_db->buffer_size);
     } else if (dma_db->mode == OC_CCR) {
+        start_time = HAL_GetTick();
         HAL_TIM_OC_Start_DMA(dma_db->htim, dma_db->tim_channel, (uint32_t *)dma_db->dma_buffer, dma_db->buffer_size);
     }
 }
@@ -106,12 +131,15 @@ void dma_db_stop(DMA_DB_t *dma_db)
 
 void dma_db_fill_in_background(DMA_DB_t *dma_db)
 {
+    if (dma_db->transfered_data >= dma_db->total_data)
+        return;
+
     dma_db->fill_buffer_in_background_count++;
+
     if (dma_db->next_fill_buffer == 0xFF)
         return;
 
     _dma_db_fill_buffer(dma_db);
-
     dma_db->next_fill_buffer = 0xFF;
 }
 

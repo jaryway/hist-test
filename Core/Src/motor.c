@@ -3,7 +3,8 @@
 #include <math.h>
 #include <stdio.h>
 
-static uint32_t start_time = 0;
+// extern uint32_t start_time = 0;
+extern uint32_t start_time;
 
 static void _motor_stop(Motor_t *motor)
 {
@@ -311,13 +312,14 @@ int32_t motor_oc_dma_on_fill_buffer(void *context)
 {
     Motor_t *motor = (Motor_t *)context;
     _calc_step_delay(motor);
-    return motor->step_delay;
+    return motor->step_delay / 2;
+    // return 20;
 }
 
 /* 开启步进电机 */
 void motor_oc_start_dma(Motor_t *motor, DMA_DB_t *dma_db)
 {
-    start_time = HAL_GetTick();
+
     _motor_create_t_ctrl_param(motor);
 
     dma_db->mode                       = OC_CCR;
@@ -330,7 +332,7 @@ void motor_oc_start_dma(Motor_t *motor, DMA_DB_t *dma_db)
     dma_db->on_fill_buffer             = motor_oc_dma_on_fill_buffer;
 
     motor->run_mode = OC_DMA;
-
+    // start_time      = HAL_GetTick();
     dma_db_start(dma_db);
 }
 
