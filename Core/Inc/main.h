@@ -79,7 +79,7 @@ typedef struct {
     int32_t pulses; // 总步数
     uint32_t accel; // 加速度 rad/s² X10 后
     uint32_t decel; // 加速度 rad/s² X10 后
-    uint32_t speed; // 速度 rad/s X10 后
+    uint32_t max_speed; // 速度 rad/s X10 后
 } TCtrlParam_t;
 
 /* USER CODE END Private defines */

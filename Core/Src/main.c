@@ -48,7 +48,7 @@
 #define OC_DMA     1
 #define PWM_IT     2
 #define PWM_DMA    3
-#define RUN_MODE   OC_DMA
+#define RUN_MODE   OC_IT
 
 /* USER CODE END PD */
 
@@ -71,12 +71,12 @@ DMA_DB_t dma_db_oc;
 Motor_t motor = {STOP, CW, 0, 0, 0, 0, 0, 0, 0, 0};
 
 Profile_t motor42_profile = {
-    .max_rpm          = 50,       // 最高转速
+    .max_rpm          = 1800,     // 最高转速
     .steps_per_rev    = 200 * 16, // 16细分
     .reduction_ratio  = 1,        // 减速比
     .accel_time       = 0.5,      // 加速时间 ms
     .decel_time       = 0.6,      // 减速时间 ms
-    .travel_distance  = 450,      // 导轨有效行程
+    .travel_distance  = 450 * 4,  // 导轨有效行程
     .distance_per_rev = 40,       // T2-20 齿,转一周周长:20*2=40mm
 };
 
@@ -130,10 +130,10 @@ TCtrlParam_t motor_profile_2_t_ctrl_param(Profile_t pro)
     }
 
     TCtrlParam_t t_ctrl_param;
-    t_ctrl_param.accel  = (uint32_t)(accel * 10.0f);     // 加速度 rad/s² X10 后
-    t_ctrl_param.decel  = (uint32_t)(decel * 10.0f);     // 加速度 rad/s² X10 后
-    t_ctrl_param.pulses = (int32_t)(total_pulses);       // 总步数
-    t_ctrl_param.speed  = (uint32_t)(max_speed * 10.0f); // 速度 rad/s X10 后
+    t_ctrl_param.accel     = (uint32_t)(accel * 10.0f);     // 加速度 rad/s² X10 后
+    t_ctrl_param.decel     = (uint32_t)(decel * 10.0f);     // 加速度 rad/s² X10 后
+    t_ctrl_param.pulses    = (int32_t)(total_pulses);       // 总步数
+    t_ctrl_param.max_speed = (uint32_t)(max_speed * 10.0f); // 速度 rad/s X10 后
 
     return t_ctrl_param;
 }
@@ -328,7 +328,7 @@ int main(void)
         printf("  pulses: %ld\r\n", t_ctrl_param.pulses);
         printf("  accel:  %lu (rad/sec² * 10)\r\n", t_ctrl_param.accel);
         printf("  decel:  %lu (rad/sec² * 10)\r\n", t_ctrl_param.decel);
-        printf("  speed:  %lu (rad/sec * 10)\r\n", t_ctrl_param.speed);
+        printf("  max_speed:  %lu (rad/sec * 10)\r\n", t_ctrl_param.max_speed);
     }
 
     // 1、初始化电机
@@ -336,7 +336,12 @@ int main(void)
     motor_init(&motor);
     motor_attach(&motor, GPIOB, GPIO_PIN_4, DIR_GPIO_Port, DIR_Pin, ENA_GPIO_Port, ENA_Pin);
     motor_attach_timer(&motor, &htim3, TIM_CHANNEL_1);
-    motor_create_t_ctrl_param(&motor, t_ctrl_param.pulses, t_ctrl_param.accel, t_ctrl_param.decel, t_ctrl_param.speed);
+    // motor_create_t_ctrl_param(&motor, t_ctrl_param.pulses, t_ctrl_param.accel, t_ctrl_param.decel, t_ctrl_param.speed);
+    motor_set_pulses(&motor, t_ctrl_param.pulses);
+    motor_set_accel(&motor, t_ctrl_param.accel);
+    motor_set_decel(&motor, t_ctrl_param.decel);
+    motor_set_max_speed(&motor, t_ctrl_param.max_speed);
+
 #if RUN_MODE == OC_DMA
     motor_oc_start_dma(&motor, &dma_db_oc);
 // motor_oc_stop_dma(&motor, &dma_db_oc);

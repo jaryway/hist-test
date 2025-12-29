@@ -60,9 +60,13 @@ typedef struct
     TIM_HandleTypeDef *htim;
     uint32_t tim_channel; // 定时器通道
 
+    RunMode_t run_mode;    // 运行模式
     uint32_t total_pulses; /* 目标移动总步数 */
 
-    RunMode_t run_mode; // 运行模式
+    int32_t pulses;
+    uint32_t accel;
+    uint32_t decel;
+    uint32_t max_speed;
 
 } Motor_t;
 
@@ -97,6 +101,10 @@ void motor_attach(
 void motor_attach_timer(Motor_t *motor, TIM_HandleTypeDef *htim, uint32_t tim_channel);
 void motor_set_steps_per_mm(Motor_t *motor, uint16_t steps_per_mm);
 void motor_set_reversed_dir(Motor_t *motor);
+void motor_set_pulses(Motor_t *motor, int32_t pulses);
+void motor_set_accel(Motor_t *motor, uint32_t accel_rad_per_sec2_x10);
+void motor_set_decel(Motor_t *motor, uint32_t decel_rad_per_sec2_x10);
+void motor_set_max_speed(Motor_t *motor, uint32_t speed_rad_per_sec_x10);
 
 void motor_oc_start_dma(Motor_t *motor, DMA_DB_t *dma_db);
 void motor_oc_stop_dma(Motor_t *motor, DMA_DB_t *dma_db);
@@ -106,7 +114,7 @@ void motor_oc_stop_it(Motor_t *motor);
 
 // void motor_start(uint8_t motor_num);                                                                      /* 开启步进电机 */
 // void motor_stop(uint8_t motor_num);                                                                       /* 关闭步进电机 */
-void motor_create_t_ctrl_param(Motor_t *motor, int32_t pulses, uint32_t accel, uint32_t decel, uint32_t speed); /* 梯形加减速控制函数 */
+// void motor_create_t_ctrl_param(Motor_t *motor); /* 梯形加减速控制函数 */
 
 void motor_oc_it_cb_handle(Motor_t *motor);
 
