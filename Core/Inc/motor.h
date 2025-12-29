@@ -68,6 +68,8 @@ typedef struct
     uint32_t decel;
     uint32_t max_speed;
 
+     uint8_t half_phase;
+
 } Motor_t;
 
 enum STA {

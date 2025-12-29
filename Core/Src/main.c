@@ -290,7 +290,7 @@ int _write(int file, char *ptr, int len)
     // 在中断上下文中使用非阻塞方式
     if (__get_IPSR() != 0) {
         // 在中断中，使用较短的超时时间
-        HAL_UART_Transmit(&huart3, (uint8_t *)ptr, len, 2000);
+        HAL_UART_Transmit(&huart3, (uint8_t *)ptr, len, 200);
     } else {
         // 在主程序中，使用阻塞方式
         HAL_UART_Transmit(&huart3, (uint8_t *)ptr, len, HAL_MAX_DELAY);
