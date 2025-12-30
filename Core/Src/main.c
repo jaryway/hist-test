@@ -48,7 +48,7 @@
 #define OC_DMA     1
 #define PWM_IT     2
 #define PWM_DMA    3
-#define RUN_MODE   OC_DMA
+#define RUN_MODE   OC_IT
 
 /* USER CODE END PD */
 
@@ -74,12 +74,12 @@ Motor_t motor = {
 };
 
 Profile_t motor42_profile = {
-    .max_rpm          = 1400,     // 最高转速
+    .max_rpm          = 1200,     // 最高转速
     .steps_per_rev    = 200 * 16, // 16细分
     .reduction_ratio  = 1,        // 减速比
-    .accel_time       = 0.6,      // 加速时间 ms
+    .accel_time       = 0.5,      // 加速时间 ms
     .decel_time       = 0.3,      // 减速时间 ms
-    .travel_distance  = 450 * 5,  // 导轨有效行程
+    .travel_distance  = 450 * 1,  // 导轨有效行程
     .distance_per_rev = 40,       // T2-20 齿,转一周周长:20*2=40mm
 };
 
@@ -393,14 +393,21 @@ int main(void)
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
-        // if (motor.motion_sta == 0) {
-        //     HAL_Delay(100);
-        //     // motor_set_reversed_dir(&motor);
-        //     uint32_t pulses = _dir == 0 ? -t_ctrl_param.pulses : t_ctrl_param.pulses;
-        //     motor_create_t_ctrl_param(&motor, pulses, t_ctrl_param.accel, t_ctrl_param.decel, t_ctrl_param.speed);
-        //     motor_oc_start_dma(&motor, &dma_db_oc);
-        //     _dir = !_dir;
-        // }
+        if (motor_is_stopped(&motor)) {
+            // HAL_Delay(100);
+            delay_ms_with_dma_service(100, &dma_db_oc);
+            // motor_set_reversed_dir(&motor);
+            uint32_t pulses = _dir == 0 ? -t_ctrl_param.pulses : t_ctrl_param.pulses;
+            motor_set_pulses(&motor, pulses);
+#if RUN_MODE == OC_DMA
+            motor_oc_start_dma(&motor, &dma_db_oc);
+#endif
+
+#if RUN_MODE == OC_IT
+            motor_oc_start_it(&motor);
+#endif
+            _dir = !_dir;
+        }
 
         dma_db_fill_in_background(&dma_db_oc);
         static uint32_t last_time = 0;
