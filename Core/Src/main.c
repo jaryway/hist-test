@@ -27,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "dma_db.h"
 #include "motor.h"
 
@@ -48,7 +49,7 @@
 #define OC_DMA     1
 #define PWM_IT     2
 #define PWM_DMA    3
-#define RUN_MODE   OC_IT
+#define RUN_MODE   OC_DMA
 
 /* USER CODE END PD */
 
@@ -74,7 +75,7 @@ Motor_t motor = {
 };
 
 Profile_t motor42_profile = {
-    .max_rpm          = 1200,     // 最高转速
+    .max_rpm          = 1000,     // 最高转速
     .steps_per_rev    = 200 * 16, // 16细分
     .reduction_ratio  = 1,        // 减速比
     .accel_time       = 0.5,      // 加速时间 ms
@@ -111,8 +112,8 @@ TCtrlParam_t motor_profile_2_t_ctrl_param(Profile_t pro)
     uint8_t reduction_ratio   = pro.reduction_ratio <= 0 ? 1 : pro.reduction_ratio; // 减速比
     uint16_t max_rpm          = pro.max_rpm;                                        // 电机额定转速
     uint16_t steps_per_rev    = pro.steps_per_rev;                                  // 电机转一圈所需的脉冲数
-    float accel_time          = pro.accel_time <= 0 ? 1.0f : pro.accel_time;        // 加速时间
-    float decel_time          = pro.decel_time <= 0 ? 1.0f : pro.decel_time;        // 减速时间
+    float accel_time          = pro.accel_time < 0 ? 0.0f : pro.accel_time;         // 加速时间
+    float decel_time          = pro.decel_time < 0 ? 0.0f : pro.decel_time;         // 减速时间
     float steps_per_mm        = (reduction_ratio * steps_per_rev) / distance_per_rev;
     float rads_per_mm         = (float)reduction_ratio * 2.0f * PI / (float)distance_per_rev; // 每mm对应的角度 rad/mm
 
@@ -132,11 +133,32 @@ TCtrlParam_t motor_profile_2_t_ctrl_param(Profile_t pro)
         decel = max_speed / decel_time;
     }
 
+    // --- 新增：预计时间（梯形/三角）---
+    float theta_acc = (max_speed * max_speed) / (2.0f * accel);
+    float theta_dec = (max_speed * max_speed) / (2.0f * decel);
+
+    float t_total_sec = 0.0f;
+
+    if ((theta_acc + theta_dec) <= total_rads) {
+        // 梯形：能跑到 max_speed
+        float t_acc       = max_speed / accel;
+        float t_dec       = max_speed / decel;
+        float theta_const = total_rads - theta_acc - theta_dec;
+        float t_const     = theta_const / max_speed;
+        t_total_sec       = t_acc + t_const + t_dec;
+    } else {
+        // 三角：跑不到 max_speed，计算 v_peak
+        float inv    = (1.0f / accel) + (1.0f / decel);
+        float v_peak = sqrtf((2.0f * total_rads) / inv);
+        t_total_sec  = (v_peak / accel) + (v_peak / decel);
+    }
+
     TCtrlParam_t t_ctrl_param;
-    t_ctrl_param.accel     = (uint32_t)(accel * 10.0f);     // 加速度 rad/s² X10 后
-    t_ctrl_param.decel     = (uint32_t)(decel * 10.0f);     // 加速度 rad/s² X10 后
-    t_ctrl_param.pulses    = (int32_t)(total_pulses);       // 总步数
-    t_ctrl_param.max_speed = (uint32_t)(max_speed * 10.0f); // 速度 rad/s X10 后
+    t_ctrl_param.accel       = (uint32_t)(accel * 10.0f);     // 加速度 rad/s² X10 后
+    t_ctrl_param.decel       = (uint32_t)(decel * 10.0f);     // 加速度 rad/s² X10 后
+    t_ctrl_param.pulses      = (int32_t)(total_pulses);       // 总步数
+    t_ctrl_param.max_speed   = (uint32_t)(max_speed * 10.0f); // 速度 rad/s X10 后
+    t_ctrl_param.est_time_ms = (uint32_t)(t_total_sec * 1000.0f + 0.5f);
 
     return t_ctrl_param;
 }
@@ -352,6 +374,7 @@ int main(void)
         printf("  accel:  %lu (rad/sec² * 10)\r\n", t_ctrl_param.accel);
         printf("  decel:  %lu (rad/sec² * 10)\r\n", t_ctrl_param.decel);
         printf("  max_speed:  %lu (rad/sec * 10)\r\n", t_ctrl_param.max_speed);
+        printf("  est_time: %lu ms\r\n", t_ctrl_param.est_time_ms);
     }
 
     // 1、初始化电机
@@ -395,7 +418,7 @@ int main(void)
         /* USER CODE BEGIN 3 */
         if (motor_is_stopped(&motor)) {
             // HAL_Delay(100);
-            delay_ms_with_dma_service(100, &dma_db_oc);
+            delay_ms_with_dma_service(200, &dma_db_oc);
             // motor_set_reversed_dir(&motor);
             uint32_t pulses = _dir == 0 ? -t_ctrl_param.pulses : t_ctrl_param.pulses;
             motor_set_pulses(&motor, pulses);

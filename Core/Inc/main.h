@@ -57,9 +57,9 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define ENA_Pin GPIO_PIN_3
+#define ENA_Pin       GPIO_PIN_3
 #define ENA_GPIO_Port GPIOB
-#define DIR_Pin GPIO_PIN_5
+#define DIR_Pin       GPIO_PIN_5
 #define DIR_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
@@ -70,16 +70,17 @@ typedef struct {
     uint8_t reduction_ratio;   // 减速比
     uint16_t max_rpm;          // 电机额定转速 RPM
     uint16_t steps_per_rev;    // 电机转一圈所需的步数 3200步/圈
-    float accel_time;        // 期望加速到最大速度所需时间 s
-    float decel_time;        // 期望减速到停止所需时间 s
+    float accel_time;          // 期望加速到最大速度所需时间 s
+    float decel_time;          // 期望减速到停止所需时间 s
 
 } Profile_t;
 
 typedef struct {
-    int32_t pulses; // 总步数
-    uint32_t accel; // 加速度 rad/s² X10 后
-    uint32_t decel; // 加速度 rad/s² X10 后
-    uint32_t max_speed; // 速度 rad/s X10 后
+    int32_t pulses;       // 总步数
+    uint32_t accel;       // 加速度 rad/s² X10 后
+    uint32_t decel;       // 加速度 rad/s² X10 后
+    uint32_t max_speed;   // 速度 rad/s X10 后
+    uint32_t est_time_ms; // 预计运动时间 ms
 } TCtrlParam_t;
 
 /* USER CODE END Private defines */
