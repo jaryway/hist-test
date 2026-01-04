@@ -81,7 +81,7 @@ Profile_t motor42_profile = {
     .reduction_ratio  = 1,        // 减速比
     .accel_time       = 0.5,      // 加速时间 ms
     .decel_time       = 0.3,      // 减速时间 ms
-    .travel_distance  = 450 * 1,  // 导轨有效行程
+    .travel_distance  = 450 * 3,  // 导轨有效行程
     .distance_per_rev = 40,       // T2-20 齿,转一周周长:20*2=40mm
 };
 
@@ -291,9 +291,6 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
 
         // __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, cnt + 40);
 #if RUN_MODE == OC_IT
-        // uint32_t cnt = __HAL_TIM_GET_COUNTER(htim);
-        // __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, cnt + 15);
-        // printf("cnt=%lu\r\n", cnt);
         motor_oc_it_cb_handle(&motor);
 #endif
 
@@ -391,9 +388,6 @@ int main(void)
 
 #if RUN_MODE == OC_DMA
     motor_oc_start_dma(&motor, &dma_db_oc);
-    // motor_oc_stop_dma(&motor, &dma_db_oc);
-
-    // motor_oc_start_dma(&motor, &dma_db_oc);
 #endif
 
 #if RUN_MODE == OC_IT
@@ -416,54 +410,33 @@ int main(void)
     /* USER CODE BEGIN WHILE */
     // uint8_t _dir = 0;
     while (1) {
+#if RUN_MODE == OC_DMA
         dma_db_fill_in_background(&dma_db_oc);
+#endif
         if (HAL_GetTick() - last_time >= 500) {
+#if RUN_MODE == OC_DMA
             motor_oc_stop_dma(&motor, &dma_db_oc);
-
             printf("TIM3->SR=0x%04X\r\n", (unsigned)TIM3->SR);
+#endif
+
+#if RUN_MODE == OC_IT
+            motor_oc_stop_it(&motor);
+#endif
+
             HAL_Delay(500);
 
             last_time = HAL_GetTick();
         } else if (motor_is_stopped(&motor)) {
+
+#if RUN_MODE == OC_DMA
             motor_oc_start_dma(&motor, &dma_db_oc);
+#endif
+
+#if RUN_MODE == OC_IT
+            motor_oc_start_it(&motor);
+#endif
             last_time = HAL_GetTick();
         }
-        //         if (HAL_GetTick() - last_time > 500 && !motor_is_stopped(&motor)) {
-        //             motor_oc_stop_dma(&motor, &dma_db_oc);
-        //             last_time = HAL_GetTick();
-        //         }
-        //         /* USER CODE END WHILE */
-
-        //         /* USER CODE BEGIN 3 */
-        //         if (motor_is_stopped(&motor)) {
-        //             // HAL_Delay(100);
-        //             // delay_ms_with_dma_service(200, &dma_db_oc);
-        //             // motor_set_reversed_dir(&motor);
-        //             uint32_t pulses = _dir == 0 ? -t_ctrl_param.pulses : t_ctrl_param.pulses;
-        //             motor_set_pulses(&motor, pulses);
-        // #if RUN_MODE == OC_DMA
-        //             motor_oc_start_dma(&motor, &dma_db_oc);
-        // #endif
-
-        // #if RUN_MODE == OC_IT
-        //             motor_oc_start_it(&motor);
-        // #endif
-        //             _dir = !_dir;
-        //         }
-
-        //         // dma_db_fill_in_background(&dma_db_oc);
-        //         static uint32_t last_time = 0;
-
-        //         if (HAL_GetTick() - last_time > 1000 && has_count_changed) {
-        //             has_count_changed = 0;
-        //             last_time         = HAL_GetTick();
-        //             // HAL_Delay(50);
-        //             delay_ms_with_dma_service(50, &dma_db_oc);
-        //             last_time = HAL_GetTick();
-
-        //             // prinf_dma_info(&htim3, &dma_db_oc);
-        //             // printf("finished_count:%lu,half_count:%lu,oc_it_count:%lu\r\n", finished_count, half_count, oc_it_count);
-        //         }
     }
     /* USER CODE END 3 */
 }
