@@ -66,6 +66,7 @@ static uint32_t half_count       = 0;
 static uint32_t finished_count   = 0;
 static uint8_t has_count_changed = 0;
 static uint32_t oc_it_count      = 0;
+static uint32_t last_time        = 0;
 
 DMA_DB_t dma_db_oc;
 
@@ -390,7 +391,9 @@ int main(void)
 
 #if RUN_MODE == OC_DMA
     motor_oc_start_dma(&motor, &dma_db_oc);
-// motor_oc_stop_dma(&motor, &dma_db_oc);
+    // motor_oc_stop_dma(&motor, &dma_db_oc);
+
+    // motor_oc_start_dma(&motor, &dma_db_oc);
 #endif
 
 #if RUN_MODE == OC_IT
@@ -411,40 +414,56 @@ int main(void)
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
-    uint8_t _dir = 0;
+    // uint8_t _dir = 0;
     while (1) {
-        /* USER CODE END WHILE */
-
-        /* USER CODE BEGIN 3 */
-        if (motor_is_stopped(&motor)) {
-            // HAL_Delay(100);
-            delay_ms_with_dma_service(200, &dma_db_oc);
-            // motor_set_reversed_dir(&motor);
-            uint32_t pulses = _dir == 0 ? -t_ctrl_param.pulses : t_ctrl_param.pulses;
-            motor_set_pulses(&motor, pulses);
-#if RUN_MODE == OC_DMA
-            motor_oc_start_dma(&motor, &dma_db_oc);
-#endif
-
-#if RUN_MODE == OC_IT
-            motor_oc_start_it(&motor);
-#endif
-            _dir = !_dir;
-        }
-
         dma_db_fill_in_background(&dma_db_oc);
-        static uint32_t last_time = 0;
+        if (HAL_GetTick() - last_time >= 500) {
+            motor_oc_stop_dma(&motor, &dma_db_oc);
 
-        if (HAL_GetTick() - last_time > 1000 && has_count_changed) {
-            has_count_changed = 0;
-            last_time         = HAL_GetTick();
-            // HAL_Delay(50);
-            delay_ms_with_dma_service(50, &dma_db_oc);
+            printf("TIM3->SR=0x%04X\r\n", (unsigned)TIM3->SR);
+            HAL_Delay(500);
+
             last_time = HAL_GetTick();
-
-            // prinf_dma_info(&htim3, &dma_db_oc);
-            // printf("finished_count:%lu,half_count:%lu,oc_it_count:%lu\r\n", finished_count, half_count, oc_it_count);
+        } else if (motor_is_stopped(&motor)) {
+            motor_oc_start_dma(&motor, &dma_db_oc);
+            last_time = HAL_GetTick();
         }
+        //         if (HAL_GetTick() - last_time > 500 && !motor_is_stopped(&motor)) {
+        //             motor_oc_stop_dma(&motor, &dma_db_oc);
+        //             last_time = HAL_GetTick();
+        //         }
+        //         /* USER CODE END WHILE */
+
+        //         /* USER CODE BEGIN 3 */
+        //         if (motor_is_stopped(&motor)) {
+        //             // HAL_Delay(100);
+        //             // delay_ms_with_dma_service(200, &dma_db_oc);
+        //             // motor_set_reversed_dir(&motor);
+        //             uint32_t pulses = _dir == 0 ? -t_ctrl_param.pulses : t_ctrl_param.pulses;
+        //             motor_set_pulses(&motor, pulses);
+        // #if RUN_MODE == OC_DMA
+        //             motor_oc_start_dma(&motor, &dma_db_oc);
+        // #endif
+
+        // #if RUN_MODE == OC_IT
+        //             motor_oc_start_it(&motor);
+        // #endif
+        //             _dir = !_dir;
+        //         }
+
+        //         // dma_db_fill_in_background(&dma_db_oc);
+        //         static uint32_t last_time = 0;
+
+        //         if (HAL_GetTick() - last_time > 1000 && has_count_changed) {
+        //             has_count_changed = 0;
+        //             last_time         = HAL_GetTick();
+        //             // HAL_Delay(50);
+        //             delay_ms_with_dma_service(50, &dma_db_oc);
+        //             last_time = HAL_GetTick();
+
+        //             // prinf_dma_info(&htim3, &dma_db_oc);
+        //             // printf("finished_count:%lu,half_count:%lu,oc_it_count:%lu\r\n", finished_count, half_count, oc_it_count);
+        //         }
     }
     /* USER CODE END 3 */
 }

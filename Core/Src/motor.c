@@ -443,15 +443,18 @@ void motor_oc_start_dma(Motor_t *motor, DMA_DB_t *dma_db)
     dma_db->transfer_complete_callback = motor_oc_dma_transfer_complete;
     dma_db->on_fill_buffer             = motor_oc_dma_on_fill_buffer;
 
-    motor->run_mode = OC_DMA;
+    motor->half_phase = 0;
+    motor->run_mode   = OC_DMA;
     // start_time      = HAL_GetTick();
     dma_db_start(dma_db);
 }
 
 void motor_oc_stop_dma(Motor_t *motor, DMA_DB_t *dma_db)
 {
-    motor->motion_sta = 0;
+
     dma_db_stop(dma_db);
+    motor->motion_sta = 0;
+    motor->half_phase = 0;
 }
 
 void motor_oc_start_it(Motor_t *motor)
@@ -468,6 +471,8 @@ void motor_oc_stop_it(Motor_t *motor)
 {
     HAL_TIM_OC_Stop_IT(motor->htim, motor->tim_channel);
     motor->motion_sta = 0;
+    __HAL_TIM_CLEAR_FLAG(motor->htim, TIM_FLAG_CC1);
+    __HAL_TIM_CLEAR_FLAG(motor->htim, TIM_FLAG_UPDATE);
 }
 
 void motor_oc_it_cb_handle(Motor_t *motor)
