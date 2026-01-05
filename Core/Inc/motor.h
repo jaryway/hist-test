@@ -73,10 +73,10 @@ typedef struct
 } Motor_t;
 
 enum STA {
-    STOP = 0, /* 加减速曲线状态：停止*/
-    ACCEL,    /* 加减速曲线状态：加速阶段*/
-    DECEL,    /* 加减速曲线状态：减速阶段*/
-    RUN       /* 加减速曲线状态：匀速阶段*/
+    MOTOR_STOP = 0, /* 加减速曲线状态：停止*/
+    MOTOR_ACCEL,    /* 加减速曲线状态：加速阶段*/
+    MOTOR_DECEL,    /* 加减速曲线状态：减速阶段*/
+    MOTOR_RUN       /* 加减速曲线状态：匀速阶段*/
 };
 
 enum DIR {

@@ -34,7 +34,7 @@ static void _motor_dir_set(Motor_t *motor)
 
 static void _motor_reset_runtime_state(Motor_t *motor)
 {
-    motor->run_state  = STOP;
+    motor->run_state  = MOTOR_STOP;
     motor->motion_sta = 0;
 
     motor->step_delay       = 0;
@@ -55,13 +55,13 @@ static void _motor_advance_one_step(Motor_t *motor)
     uint16_t new_step_delay = motor->step_delay;
 
     switch (motor->run_state) {
-        case STOP:
+        case MOTOR_STOP:
             motor->step_count = 0;
             motor->rest       = 0;
             _motor_stop(motor);
             return;
 
-        case ACCEL:
+        case MOTOR_ACCEL:
             motor->add_pulse_count++;
             motor->step_count++;
 
@@ -77,16 +77,16 @@ static void _motor_advance_one_step(Motor_t *motor)
 
             if (motor->step_count >= motor->decel_start) {
                 motor->accel_count = motor->decel_val;
-                motor->run_state   = DECEL;
+                motor->run_state   = MOTOR_DECEL;
             } else if (new_step_delay <= motor->min_delay) {
                 motor->last_accel_delay = new_step_delay;
                 new_step_delay          = motor->min_delay;
                 motor->rest             = 0;
-                motor->run_state        = RUN;
+                motor->run_state        = MOTOR_RUN;
             }
             break;
 
-        case RUN:
+        case MOTOR_RUN:
             motor->add_pulse_count++;
             motor->step_count++;
 
@@ -100,11 +100,11 @@ static void _motor_advance_one_step(Motor_t *motor)
             if (motor->step_count >= motor->decel_start) {
                 motor->accel_count = motor->decel_val;
                 new_step_delay     = motor->last_accel_delay;
-                motor->run_state   = DECEL;
+                motor->run_state   = MOTOR_DECEL;
             }
             break;
 
-        case DECEL:
+        case MOTOR_DECEL:
             motor->step_count++;
             motor->add_pulse_count++;
 
@@ -119,7 +119,7 @@ static void _motor_advance_one_step(Motor_t *motor)
             motor->rest    = ((2 * motor->step_delay) + motor->rest) % (4 * motor->accel_count + 1);
 
             if (motor->accel_count >= 0) {
-                motor->run_state  = STOP;
+                motor->run_state  = MOTOR_STOP;
                 motor->step_count = 0;
                 motor->rest       = 0;
                 _motor_stop(motor);
@@ -176,7 +176,7 @@ static void _motor_create_t_ctrl_param(Motor_t *motor)
     if (pulses == 1) /* 步数为1 */
     {
         motor->accel_count = -1;    /* 只移动一步 */
-        motor->run_state   = DECEL; /* 减速状态. */
+        motor->run_state   = MOTOR_DECEL; /* 减速状态. */
         motor->step_delay  = 1000;  /* 默认速度 */
     } else if (pulses != 0)         /* 如果目标运动步数不为0*/
     {
@@ -218,9 +218,9 @@ static void _motor_create_t_ctrl_param(Motor_t *motor)
         if (motor->step_delay <= motor->min_delay) /* 如果一开始c0的速度比匀速段速度还大，就不需要进行加速运动，直接进入匀速 */
         {
             motor->step_delay = motor->min_delay;
-            motor->run_state  = RUN;
+            motor->run_state  = MOTOR_RUN;
         } else {
-            motor->run_state = ACCEL;
+            motor->run_state = MOTOR_ACCEL;
         }
         motor->accel_count = 0; /* 复位加减速计数值 */
     }
@@ -247,7 +247,7 @@ void motor_init(Motor_t *motor)
     motor->step_delay   = 0;
     motor->min_delay    = 0;
     motor->accel_count  = 0;
-    motor->run_state    = ACCEL;
+    motor->run_state    = MOTOR_ACCEL;
     motor->total_pulses = 0;
 
     motor->reversed_dir = 0;
@@ -326,7 +326,7 @@ void motor_oc_dma_transfer_complete(void *context)
     // 停止电机操作
     // HAL_TIM_OC_Stop_DMA(motor->htim, motor->tim_channel);
     motor->motion_sta = 0;
-    motor->run_state  = STOP;
+    motor->run_state  = MOTOR_STOP;
     motor->run_mode   = OC_DMA;
     printf("Motor stopped. Total run time: %lu ms\r\n", HAL_GetTick() - start_time);
     printf("DMA transfer completed for motor\r\n");

@@ -71,7 +71,7 @@ static uint32_t last_time        = 0;
 DMA_DB_t dma_db_oc;
 
 Motor_t motor = {
-    .run_state = STOP,
+    .run_state = MOTOR_STOP,
     .pulses    = 0,
 };
 
