@@ -114,8 +114,13 @@ static void _dma_db_switch_buffer(DMA_DB_t *dma_db)
 
 void dma_db_start(DMA_DB_t *dma_db)
 {
+    uint16_t cnt         = __HAL_TIM_GET_COUNTER(dma_db->htim);
+    dma_db->g_last_accum = cnt + 100; // 100 tick guard
+    __HAL_TIM_SET_COMPARE(dma_db->htim, dma_db->tim_channel, dma_db->g_last_accum);
+
     dma_db->dma_buffer_0_filled = 0;
     dma_db->dma_buffer_1_filled = 0;
+
     if (dma_db->total_data > MAX_DMA_BUFFER_SIZE) {
         uint16_t buffer_size = MAX_DMA_BUFFER_SIZE;
         while (dma_db->total_data % buffer_size != 0) {
@@ -132,7 +137,6 @@ void dma_db_start(DMA_DB_t *dma_db)
 
     if (dma_db->total_data > dma_db->buffer_size / 2) {
         dma_db->next_fill_buffer = 1;
-        // _dma_db_fill_buffer(dma_db);
         _dma_db_fill_half(dma_db, 1);
     }
 
@@ -140,6 +144,7 @@ void dma_db_start(DMA_DB_t *dma_db)
     dma_db->next_fill_buffer                = 0xFF;
     dma_db->transfered_data                 = 0;
     dma_db->fill_buffer_in_background_count = 0;
+    dma_db->transfering                     = 1;
 
     printf("buffer_size: %u\r\n", dma_db->buffer_size);
     printf("total_data: %lu\r\n", dma_db->total_data);
@@ -159,12 +164,14 @@ void dma_db_stop(DMA_DB_t *dma_db)
     } else if (dma_db->mode == OC_CCR) {
         HAL_TIM_OC_Stop_DMA(dma_db->htim, dma_db->tim_channel);
     }
+    dma_db->transfering = 0;
 }
 
 void dma_db_fill_in_background(DMA_DB_t *dma_db)
 {
-
-    if (dma_db->transfered_data >= dma_db->total_data || dma_db->filling)
+    if (dma_db->transfered_data >= dma_db->total_data //
+        || dma_db->filling                            //
+        || dma_db->transfering == 0)
         return;
 
     uint8_t which;
@@ -201,6 +208,7 @@ void dma_db_transfer_complete_it_cb_handle(DMA_DB_t *dma_db)
     // 判断脉冲是否发送完成，如果已经发送完成，停止DMA传输
     if (temp >= dma_db->total_data) {
         dma_db->transfered_data = dma_db->total_data; // 重新修正发送位置
+
         if (dma_db->mode == PWM_ARR) {
             HAL_TIM_PWM_Stop(dma_db->htim, dma_db->tim_channel);
             HAL_TIM_Base_Stop_DMA(dma_db->htim);
@@ -211,7 +219,7 @@ void dma_db_transfer_complete_it_cb_handle(DMA_DB_t *dma_db)
         if (dma_db->transfer_complete_callback != NULL) {
             dma_db->transfer_complete_callback(dma_db->callback_context);
         }
-
+        dma_db->transfering = 0;
         return;
     }
 

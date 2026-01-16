@@ -38,6 +38,8 @@ typedef struct
     int32_t (*on_fill_buffer)(void *context);
     void *callback_context; // 上下文参数（用户自定义数据）
 
+    volatile uint8_t transfering; // 1=正在传输，0=停止传输
+
 } DMA_DB_t;
 
 extern uint32_t start_time;
