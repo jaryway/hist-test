@@ -57,10 +57,14 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define ENA_Pin       GPIO_PIN_3
+#define ENA_Pin GPIO_PIN_3
 #define ENA_GPIO_Port GPIOB
-#define DIR_Pin       GPIO_PIN_5
+#define DIR_Pin GPIO_PIN_5
 #define DIR_GPIO_Port GPIOB
+#define ENAB7_Pin GPIO_PIN_7
+#define ENAB7_GPIO_Port GPIOB
+#define DIRB9_Pin GPIO_PIN_9
+#define DIRB9_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

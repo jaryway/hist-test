@@ -31,6 +31,10 @@
 #include "dma_db.h"
 #include "motor.h"
 
+#define LCD_USART    huart1 // lcd 屏幕通信
+#define MODBUS_USART huart2 // modbus 通信
+#define DEBUG_USART  huart3 // 串口调试
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -360,6 +364,7 @@ int main(void)
     MX_USART2_UART_Init();
     MX_USART3_UART_Init();
     MX_TIM2_Init();
+    MX_TIM4_Init();
     /* USER CODE BEGIN 2 */
 
     printf("System start\r\n");
@@ -502,7 +507,6 @@ void Error_Handler(void)
     }
     /* USER CODE END Error_Handler_Debug */
 }
-
 #ifdef USE_FULL_ASSERT
 /**
  * @brief  Reports the name of the source file and the source line number

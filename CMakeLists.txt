@@ -51,6 +51,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # ${CMAKE_SOURCE_DIR}/Core/Src/dma_doublebuffer.c
     ${CMAKE_SOURCE_DIR}/Core/Src/dma_db.c
     ${CMAKE_SOURCE_DIR}/Core/Src/motor.c
+    ${CMAKE_SOURCE_DIR}/Core/Src/modbus_rtu_master.c
 )
 
 # Add include paths
