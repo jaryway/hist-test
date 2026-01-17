@@ -30,10 +30,11 @@
 #include <math.h>
 #include "dma_db.h"
 #include "motor.h"
+#include "bsp_modbus_master.h"
 
-#define LCD_USART    huart1 // lcd 屏幕通信
-#define MODBUS_USART huart2 // modbus 通信
-#define DEBUG_USART  huart3 // 串口调试
+#define MODBUS_HUART huart1 // modbus 通信 com3
+#define LCD_HUART    huart2 // lcd 屏幕通信
+#define DEBUG_HUART  huart3 // 串口调试 com4 串口调试
 
 /* USER CODE END Includes */
 
@@ -98,6 +99,29 @@ Profile_t servo_profile = {
     .travel_distance  = 1650,     // 导轨有效行程
     .distance_per_rev = 125,      // 同步轮 T5-25 转一周周长
 };
+
+uint32_t get_modbus_timeout(uint32_t baudrate, uint16_t quantity, uint8_t func_code)
+{
+    // 计算字符传输时间
+    float char_time_ms = (10.0f * 1000.0f) / baudrate; // 10位/字符
+
+    switch (func_code) {
+        case 0x03: // 读保持寄存器
+            // 请求: 8字节, 响应: 5+2*quantity 字节
+            return (uint32_t)(8 + 5 + 2 * quantity) * char_time_ms + 300; // +300ms 处理时间
+
+        case 0x06: // 写单个寄存器
+            // 只需发送，响应类似
+            return (uint32_t)(8 * char_time_ms) + 200; // +200ms 处理时间
+
+        case 0x10: // 写多个寄存器
+            // 发送: 9+2*quantity 字节
+            return (uint32_t)((9 + 2 * quantity) * char_time_ms) + 200;
+
+        default:
+            return 500; // 默认值
+    }
+}
 
 /* USER CODE END PV */
 
@@ -367,37 +391,71 @@ int main(void)
 
     printf("System start\r\n");
 
-    Profile_t profiles[] = {motor42_profile, servo_profile};
+    //     Profile_t profiles[] = {motor42_profile, servo_profile};
 
-    for (int i = 0; i < 2; i++) {
-        Profile_t pro             = profiles[i];
-        TCtrlParam_t t_ctrl_param = motor_profile_2_t_ctrl_param(pro);
-        printf("Profile %d:\r\n", i + 1);
-        printf("  pulses: %ld\r\n", t_ctrl_param.pulses);
-        printf("  accel:  %lu (rad/sec² * 10)\r\n", t_ctrl_param.accel);
-        printf("  decel:  %lu (rad/sec² * 10)\r\n", t_ctrl_param.decel);
-        printf("  max_speed:  %lu (rad/sec * 10)\r\n", t_ctrl_param.max_speed);
-        printf("  est_time: %lu ms\r\n", t_ctrl_param.est_time_ms);
+    //     for (int i = 0; i < 2; i++) {
+    //         Profile_t pro             = profiles[i];
+    //         TCtrlParam_t t_ctrl_param = motor_profile_2_t_ctrl_param(pro);
+    //         printf("Profile %d:\r\n", i + 1);
+    //         printf("  pulses: %ld\r\n", t_ctrl_param.pulses);
+    //         printf("  accel:  %lu (rad/sec² * 10)\r\n", t_ctrl_param.accel);
+    //         printf("  decel:  %lu (rad/sec² * 10)\r\n", t_ctrl_param.decel);
+    //         printf("  max_speed:  %lu (rad/sec * 10)\r\n", t_ctrl_param.max_speed);
+    //         printf("  est_time: %lu ms\r\n", t_ctrl_param.est_time_ms);
+    //     }
+
+    //     // 1、初始化电机
+    //     TCtrlParam_t t_ctrl_param = motor_profile_2_t_ctrl_param(motor42_profile);
+    //     motor_init(&motor);
+    //     motor_attach(&motor, GPIOB, GPIO_PIN_4, DIR_GPIO_Port, DIR_Pin, ENA_GPIO_Port, ENA_Pin);
+    //     motor_attach_timer(&motor, &htim3, TIM_CHANNEL_1);
+    //     // motor_create_t_ctrl_param(&motor, t_ctrl_param.pulses, t_ctrl_param.accel, t_ctrl_param.decel, t_ctrl_param.speed);
+    //     motor_set_pulses(&motor, t_ctrl_param.pulses);
+    //     motor_set_accel(&motor, t_ctrl_param.accel);
+    //     motor_set_decel(&motor, t_ctrl_param.decel);
+    //     motor_set_max_speed(&motor, t_ctrl_param.max_speed);
+
+    // #if RUN_MODE == OC_DMA
+    //     motor_oc_start_dma(&motor, &dma_db_oc);
+    // #endif
+
+    // #if RUN_MODE == OC_IT
+    //     motor_oc_start_it(&motor);
+    // #endif
+    uint16_t read_buffer[10];
+    uint16_t quantity = 4;
+    MB_Status_t status;
+    uint16_t write_values[4] = {0x1234, 0x5678, 0x9ABC, 0xDEF0};
+
+    modbus_init(&MODBUS_HUART, RS485_RE_GPIO_Port, RS485_RE_Pin);
+    status = modbus_write_single_register(0x01, 0x1, 666, 1000);
+    printf("status=%d\r\n", status);
+
+    status = modbus_write_multiple_registers(0x01, 0x0, 4, write_values, 1000);
+    printf("status=%d\r\n", status);
+
+    status = modbus_read_holding_registers(
+        0x01,                                      // 从站地址 (1)
+        0x0000,                                    // 起始寄存器地址 (0)
+        quantity,                                  // 读取寄存器数量 (2个)
+        read_buffer,                               // 存储结果的缓冲区
+        get_modbus_timeout(115200, quantity, 0x03) // 超时时间 (1秒)
+    );
+
+    if (status == MB_OK) {
+        printf("Modbus read successful!\r\n");
+        printf("Read %d registers from slave 0x%02X:\r\n", quantity, 0x01);
+
+        // 打印读取到的数据
+        for (int i = 0; i < quantity; i++) {
+            printf("Register[0x%04X] = 0x%04X (%d)\r\n",
+                   0x0000 + i, read_buffer[i], read_buffer[i]);
+        }
+    } else {
+        printf("Modbus read failed with status: %d\r\n", status);
     }
 
-    // 1、初始化电机
-    TCtrlParam_t t_ctrl_param = motor_profile_2_t_ctrl_param(motor42_profile);
-    motor_init(&motor);
-    motor_attach(&motor, GPIOB, GPIO_PIN_4, DIR_GPIO_Port, DIR_Pin, ENA_GPIO_Port, ENA_Pin);
-    motor_attach_timer(&motor, &htim3, TIM_CHANNEL_1);
-    // motor_create_t_ctrl_param(&motor, t_ctrl_param.pulses, t_ctrl_param.accel, t_ctrl_param.decel, t_ctrl_param.speed);
-    motor_set_pulses(&motor, t_ctrl_param.pulses);
-    motor_set_accel(&motor, t_ctrl_param.accel);
-    motor_set_decel(&motor, t_ctrl_param.decel);
-    motor_set_max_speed(&motor, t_ctrl_param.max_speed);
-
-#if RUN_MODE == OC_DMA
-    motor_oc_start_dma(&motor, &dma_db_oc);
-#endif
-
-#if RUN_MODE == OC_IT
-    motor_oc_start_it(&motor);
-#endif
+    // modbus_write_06(0x01, 0x0000, 0x0001);
 
     // DMA1_Channel1->CCR &= ~DMA_CCR_HTIE; // 禁用半传输中断
     // DMA1_Channel1->CCR |= DMA_CCR_HTIE; // 重新启用半传输中断
@@ -413,35 +471,10 @@ int main(void)
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
-    // uint8_t _dir = 0;
     while (1) {
-#if RUN_MODE == OC_DMA
-        dma_db_fill_in_background(&dma_db_oc);
-#endif
-        if (HAL_GetTick() - last_time >= 500) {
-#if RUN_MODE == OC_DMA
-            motor_oc_stop_dma(&motor, &dma_db_oc);
-            printf("TIM3->SR=0x%04X\r\n", (unsigned)TIM3->SR);
-#endif
+        /* USER CODE END WHILE */
 
-#if RUN_MODE == OC_IT
-            motor_oc_stop_it(&motor);
-#endif
-
-            HAL_Delay(500);
-
-            last_time = HAL_GetTick();
-        } else if (motor_is_stopped(&motor)) {
-
-#if RUN_MODE == OC_DMA
-            motor_oc_start_dma(&motor, &dma_db_oc);
-#endif
-
-#if RUN_MODE == OC_IT
-            motor_oc_start_it(&motor);
-#endif
-            last_time = HAL_GetTick();
-        }
+        /* USER CODE BEGIN 3 */
     }
     /* USER CODE END 3 */
 }
