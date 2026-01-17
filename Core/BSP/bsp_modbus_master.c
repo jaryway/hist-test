@@ -2,6 +2,11 @@
 #include <stdio.h>
 #include <string.h>
 
+/* 可调项：发送后等待 TC 的最大等待（ms） */
+#ifndef MODBUS_TC_WAIT_MS
+#define MODBUS_TC_WAIT_MS 100
+#endif
+
 static UART_HandleTypeDef *mb_huart = NULL;
 static GPIO_TypeDef *mb_de_port     = NULL;
 static uint16_t mb_de_pin           = 0;
@@ -44,22 +49,38 @@ static HAL_StatusTypeDef _wait_for_tc(uint32_t timeout_ms)
     return HAL_OK;
 }
 
-static void _modbus_send(uint8_t *data, uint16_t len)
+/* 发送封装：确保在任何情况下都关闭 DE
+ * timeout_ms 用于 HAL_UART_Transmit 的超时（可为传入的 timeout_ms）
+ */
+static MB_Status_t _modbus_send(uint8_t *data, uint16_t len, uint32_t timeout_ms)
 {
-    // 发送：启用 DE -> 发送 -> 等待 TC -> 禁用 DE
+    if (!mb_huart) return MB_ERR_HW;
+
     _rs485_de_enable();
-    if (HAL_UART_Transmit(mb_huart, data, len, HAL_MAX_DELAY) != HAL_OK) {
+    if (HAL_UART_Transmit(mb_huart, data, len, timeout_ms) != HAL_OK) {
         _rs485_de_disable();
-        // return MB_ERR_HW;
-        return;
+        return MB_ERR_HW;
     }
 
-    if (_wait_for_tc(100) != HAL_OK) { // 等待最多 100ms，按需调整
+    if (_wait_for_tc(MODBUS_TC_WAIT_MS) != HAL_OK) {
         _rs485_de_disable();
-        // return MB_ERR_HW;
-        return;
+        return MB_ERR_HW;
     }
     _rs485_de_disable();
+    return MB_OK;
+}
+
+/* 接收封装：根据整体请求开始时间和 timeout_ms 计算剩余超时并执行 HAL_UART_Receive */
+static MB_Status_t _recv_remaining(uint8_t *buf, uint16_t len, uint32_t t_start, uint32_t timeout_ms)
+{
+    if (!mb_huart) return MB_ERR_HW;
+    uint32_t elapsed = HAL_GetTick() - t_start;
+    if (elapsed >= timeout_ms) return MB_ERR_TIMEOUT;
+    uint32_t remaining = timeout_ms - elapsed;
+    if (HAL_UART_Receive(mb_huart, buf, len, remaining) != HAL_OK) {
+        return MB_ERR_TIMEOUT;
+    }
+    return MB_OK;
 }
 
 void modbus_init(UART_HandleTypeDef *huart_ptr, GPIO_TypeDef *de_gpio_port, uint16_t de_pin)
@@ -72,20 +93,15 @@ void modbus_init(UART_HandleTypeDef *huart_ptr, GPIO_TypeDef *de_gpio_port, uint
 }
 
 /**
- * @brief  03功能码：Modbus读取保持寄存器功能码
- * @param  slave 从站地址
- * @param  addr 起始地址
- * @param  quantity   寄存器数量
- * @param  dest   用户缓冲区
- * @param  timeout_ms 超时时间
- * @retval None
+ * @brief  03功能码：Modbus读取保持寄存器功能码（分段接收，整体超时）
  */
 MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t quantity, uint16_t *dest, uint32_t timeout_ms)
 {
+    if (!mb_huart || !dest) return MB_ERR_PARAM;
+    if (quantity == 0 || quantity > 125) return MB_ERR_PARAM; // Modbus 单次最多125寄存器
+
     uint8_t tx_data[8];
     uint16_t crc;
-    // 将user_buf指针地址给到current_buffer，修改current_buffer实质就是修改user_buf
-    // uint8_t *current_buffer = user_buf;
 
     // 1.构造请求帧
     tx_data[0] = slave;                  // 从站地址
@@ -100,48 +116,71 @@ MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t
     tx_data[6] = crc & 0xFF;        // CRC低字节
     tx_data[7] = (crc >> 8) & 0xFF; // CRC高字节
 
-    _modbus_send(tx_data, 8);
-    // 3.发送请求
-    printf("Sending 03");
-    // ，打印发送的数据帧
-    for (int i = 0; i < 8; i++) {
-        printf("%02X", tx_data[i]);
-    }
-
+#if MODBUS_DEBUG
+    printf("TX(03): ");
+    for (int i = 0; i < 8; i++) printf("%02X ", tx_data[i]);
     printf("\n");
+#endif
 
-    // 预期应答长度计算：Slave(1) + Func(1) + ByteCount(1) + Data(2*quantity) + CRC(2)
-    uint16_t expected_len = 5 + 2 * quantity;
-    if (expected_len > MODBUS_MAX_ADU_LEN) return MB_ERR_BAD_RESPONSE;
+    // 3.发送请求（使用 timeout_ms 作为发送超时）
+    if (_modbus_send(tx_data, 8, timeout_ms) != MB_OK) return MB_ERR_HW;
 
-    // 接收阻塞等待 expected_len 字节（timeout_ms 为整体超时）
+    // 下面使用分段接收：先接收 Slave+Func（2字节），再按异常/正常读取剩余
     uint8_t resp[MODBUS_MAX_ADU_LEN];
-    memset(resp, 0, expected_len);
+    memset(resp, 0, sizeof(resp));
 
-    // 使用 HAL_UART_Receive 阻塞接收 expected_len，超时为 timeout_ms（可改进为分段接收）
-    if (HAL_UART_Receive(mb_huart, resp, expected_len, timeout_ms) != HAL_OK) {
-        return MB_ERR_TIMEOUT;
+    uint32_t t_start = HAL_GetTick();
+    MB_Status_t r    = _recv_remaining(resp, 2, t_start, timeout_ms);
+    if (r != MB_OK) return r;
+
+    // 可选：立即检测从站地址不匹配（不过仍按帧读取以保持总线上同步）
+    // if (resp[0] != slave) return MB_ERR_BAD_RESPONSE;
+
+    uint8_t func       = resp[1];
+    uint16_t total_len = 0;
+
+    if (func & 0x80) {
+        // 异常应答：剩余 ExceptionCode(1) + CRC(2)
+        r = _recv_remaining(resp + 2, 3, t_start, timeout_ms);
+        if (r != MB_OK) return r;
+        total_len = 5;
+    } else {
+        // 正常应答：接收 ByteCount (1)
+        r = _recv_remaining(resp + 2, 1, t_start, timeout_ms);
+        if (r != MB_OK) return r;
+        uint8_t byte_count = resp[2];
+        // 校验长度合理性
+        if (byte_count != 2 * quantity) return MB_ERR_BAD_RESPONSE;
+        // 再接收 data + CRC
+        uint16_t need = (uint16_t)byte_count + 2;
+        if (need + 3 > MODBUS_MAX_ADU_LEN) return MB_ERR_BAD_RESPONSE;
+        r = _recv_remaining(resp + 3, need, t_start, timeout_ms);
+        if (r != MB_OK) return r;
+        total_len = 3 + need;
     }
+
+#if MODBUS_DEBUG
+    printf("RX(03): ");
+    for (int i = 0; i < total_len; i++) printf("%02X ", resp[i]);
+    printf("\n");
+#endif
 
     // CRC 校验
-    uint16_t resp_crc = (uint16_t)resp[expected_len - 2] | ((uint16_t)resp[expected_len - 1] << 8);
-    uint16_t calc_crc = _modbus_crc16(resp, expected_len - 2);
-    if (resp_crc != calc_crc) {
-        return MB_ERR_CRC;
-    }
+    if (total_len < 5) return MB_ERR_BAD_RESPONSE;
+    uint16_t resp_crc = (uint16_t)resp[total_len - 2] | ((uint16_t)resp[total_len - 1] << 8);
+    uint16_t calc_crc = _modbus_crc16(resp, total_len - 2);
+    if (resp_crc != calc_crc) return MB_ERR_CRC;
 
-    // 校验地址和功能码
-    if (resp[0] != slave) return MB_ERR_BAD_RESPONSE;
-    if (resp[1] == (0x83)) { // 0x03 | 0x80 = 0x83 表示异常应答
-        // 异常码在 resp[2]
+    if (resp[1] & 0x80) {
+        // 从站返回异常码在 resp[2]
         return MB_ERR_EXCEPTION;
     }
-    if (resp[1] != 0x03) return MB_ERR_BAD_RESPONSE;
 
+    if (resp[1] != 0x03) return MB_ERR_BAD_RESPONSE;
     uint8_t byte_count = resp[2];
     if (byte_count != 2 * quantity) return MB_ERR_BAD_RESPONSE;
 
-    // 解析数据（大端寄存器）
+    // 解析数据（大端）到 dest
     for (uint16_t i = 0; i < quantity; i++) {
         uint16_t hi = resp[3 + 2 * i];
         uint16_t lo = resp[3 + 2 * i + 1];
@@ -152,143 +191,151 @@ MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t
 }
 
 /**
- * @brief  06功能码：写单路保持寄存器
- * @param  slave      从站地址
- * @param  addr       寄存器地址
- * @param  value      寄存器值
- * @retval None
+ * @brief  06功能码：写单路保持寄存器（分段接收）
  */
 MB_Status_t modbus_write_single_register(uint8_t slave, uint16_t addr, uint16_t value, uint32_t timeout_ms)
 {
+    if (!mb_huart) return MB_ERR_PARAM;
+
     uint8_t tx_data[8];
     uint16_t crc;
 
-    // 1.构造请求帧
-    tx_data[0] = slave;              // 从站地址
-    tx_data[1] = 0x06;               // 功能码
-    tx_data[2] = (addr >> 8) & 0xFF; // 寄存器地址高字节
+    // 构造请求帧
+    tx_data[0] = slave;
+    tx_data[1] = 0x06;
+    tx_data[2] = (addr >> 8) & 0xFF;
     tx_data[3] = addr & 0xFF;
     tx_data[4] = (value >> 8) & 0xFF;
     tx_data[5] = value & 0xFF;
-
     crc        = _modbus_crc16(tx_data, 6);
     tx_data[6] = crc & 0xFF;
     tx_data[7] = (crc >> 8) & 0xFF;
 
-    _modbus_send(tx_data, 8);
+#if MODBUS_DEBUG
+    printf("TX(06): ");
+    for (int i = 0; i < 8; i++) printf("%02X ", tx_data[i]);
+    printf("\n");
+#endif
 
-    // 预期应答长度计算：Slave(1) + Func(1) + Addr(2) + Data(2) + CRC(2)
-    uint16_t expected_len = 8;
-    uint8_t resp[expected_len];
+    if (_modbus_send(tx_data, 8, timeout_ms) != MB_OK) return MB_ERR_HW;
 
-    memset(resp, 0, expected_len); // 将缓冲区所有字节设为0
+    uint8_t resp[MODBUS_MAX_ADU_LEN];
+    memset(resp, 0, sizeof(resp));
+    uint32_t t_start = HAL_GetTick();
+    MB_Status_t r    = _recv_remaining(resp, 2, t_start, timeout_ms);
+    if (r != MB_OK) return r;
 
-    if (HAL_UART_Receive(mb_huart, resp, expected_len, timeout_ms) != HAL_OK) {
-        return MB_ERR_TIMEOUT;
+    uint8_t func       = resp[1];
+    uint16_t total_len = 0;
+
+    if (func & 0x80) {
+        r = _recv_remaining(resp + 2, 3, t_start, timeout_ms);
+        if (r != MB_OK) return r;
+        total_len = 5;
+    } else {
+        // 完整回显为 8 字节
+        r = _recv_remaining(resp + 2, 6, t_start, timeout_ms);
+        if (r != MB_OK) return r;
+        total_len = 8;
     }
 
-    // CRC 校验
-    uint16_t resp_crc = (uint16_t)resp[expected_len - 2] | ((uint16_t)resp[expected_len - 1] << 8);
-    uint16_t calc_crc = _modbus_crc16(resp, expected_len - 2);
+#if MODBUS_DEBUG
+    printf("RX(06): ");
+    for (int i = 0; i < total_len; i++) printf("%02X ", resp[i]);
+    printf("\n");
+#endif
+
+    if (total_len < 5) return MB_ERR_BAD_RESPONSE;
+    uint16_t resp_crc = (uint16_t)resp[total_len - 2] | ((uint16_t)resp[total_len - 1] << 8);
+    uint16_t calc_crc = _modbus_crc16(resp, total_len - 2);
     if (resp_crc != calc_crc) return MB_ERR_CRC;
 
     if (resp[1] & 0x80) return MB_ERR_EXCEPTION;
 
-    // 验证回显地址和值是否和请求一致
-    if (resp[0] != slave) return MB_ERR_BAD_RESPONSE;
     if (resp[1] != 0x06) return MB_ERR_BAD_RESPONSE;
-
     uint16_t raddr = (uint16_t)resp[2] << 8 | resp[3];
     uint16_t rval  = (uint16_t)resp[4] << 8 | resp[5];
     if (raddr != addr || rval != value) return MB_ERR_BAD_RESPONSE;
+
     return MB_OK;
 }
 
 /**
- * @brief  16功能码：写多个保持寄存器
- * @param  slave 从站地址
- * @param  addr 起始地址
- * @param  quantity   寄存器数量
- * @param  values     寄存器值
- * @retval None
+ * @brief  16功能码：写多个保持寄存器（分段接收）
  */
-MB_Status_t modbus_write_multiple_registers(uint8_t slave, uint16_t addr, uint16_t quantity, uint16_t *values, uint32_t timeout_ms)
+MB_Status_t modbus_write_multiple_registers(uint8_t slave, uint16_t addr, uint16_t quantity, const uint16_t *values, uint32_t timeout_ms)
 {
-    uint8_t tx_data[9 + 2 * quantity];
-    uint16_t crc;
+    if (!mb_huart || !values) return MB_ERR_PARAM;
+    if (quantity == 0 || quantity > 123) return MB_ERR_PARAM; // 常见限制：最多123寄存器
 
-    // 1.构造请求帧
-    tx_data[0] = slave;                  // 从站地址
-    tx_data[1] = 0x10;                   // 功能码
-    tx_data[2] = (addr >> 8) & 0xFF;     // 起始地址高字节
-    tx_data[3] = addr & 0xFF;            // 起始地址低字节
-    tx_data[4] = (quantity >> 8) & 0xFF; // 寄存器数量高字节
-    tx_data[5] = quantity & 0xFF;        // 寄存器数量低字节
-    tx_data[6] = quantity * 2;           // 字节数每个寄存器占2字节
+    /* 构造请求：长度检查 */
+    uint16_t data_bytes = quantity * 2;
+    uint16_t req_len    = 1 + 1 + 2 + 2 + 1 + data_bytes + 2; // Slave + Func + Addr(2) + Qty(2) + ByteCount + Data + CRC
+    if (req_len > MODBUS_MAX_ADU_LEN) return MB_ERR_PARAM;
 
-    for (size_t i = 0; i < quantity; i++) {
-        tx_data[7 + 2 * i] = (values[i] >> 8) & 0xFF; // 寄存器值高字节
-        tx_data[8 + 2 * i] = values[i] & 0xFF;        // 寄存器值低字节
+    uint8_t tx_data[MODBUS_MAX_ADU_LEN];
+    uint16_t idx   = 0;
+    tx_data[idx++] = slave;
+    tx_data[idx++] = 0x10;
+    tx_data[idx++] = (addr >> 8) & 0xFF;
+    tx_data[idx++] = addr & 0xFF;
+    tx_data[idx++] = (quantity >> 8) & 0xFF;
+    tx_data[idx++] = quantity & 0xFF;
+    tx_data[idx++] = (uint8_t)data_bytes;
+
+    for (uint16_t i = 0; i < quantity; i++) {
+        tx_data[idx++] = (values[i] >> 8) & 0xFF;
+        tx_data[idx++] = values[i] & 0xFF;
     }
 
-    crc = _modbus_crc16(tx_data, 7 + 2 * quantity);
+    uint16_t crc   = _modbus_crc16(tx_data, idx);
+    tx_data[idx++] = crc & 0xFF;
+    tx_data[idx++] = (crc >> 8) & 0xFF;
 
-    tx_data[7 + 2 * quantity] = crc & 0xFF;
-    tx_data[8 + 2 * quantity] = (crc >> 8) & 0xFF;
+#if MODBUS_DEBUG
+    printf("TX(10): ");
+    for (int i = 0; i < idx; i++) printf("%02X ", tx_data[i]);
+    printf("\n");
+#endif
 
-    _modbus_send(tx_data, 9 + 2 * quantity);
+    if (_modbus_send(tx_data, idx, timeout_ms) != MB_OK) return MB_ERR_HW;
 
-    // 预期应答长度计算：Slave(1) + Func(1) + Addr(2) + ByteCount(2) + CRC(2)
-    // 接收响应（8字节）
-    uint8_t resp[8];
-    if (HAL_UART_Receive(mb_huart, resp, 8, timeout_ms) != HAL_OK) {
-        // printf("Timeout waiting for write multiple registers response\n");
-        return MB_ERR_TIMEOUT;
+    // 正常应答长度固定为 8（Slave(1)+Func(1)+Addr(2)+Qty(2)+CRC(2)）
+    uint8_t resp[MODBUS_MAX_ADU_LEN];
+    memset(resp, 0, sizeof(resp));
+    uint32_t t_start = HAL_GetTick();
+    MB_Status_t r    = _recv_remaining(resp, 2, t_start, timeout_ms);
+    if (r != MB_OK) return r;
+
+    uint8_t func       = resp[1];
+    uint16_t total_len = 0;
+    if (func & 0x80) {
+        r = _recv_remaining(resp + 2, 3, t_start, timeout_ms);
+        if (r != MB_OK) return r;
+        total_len = 5;
+    } else {
+        r = _recv_remaining(resp + 2, 6, t_start, timeout_ms);
+        if (r != MB_OK) return r;
+        total_len = 8;
     }
 
-    // 打印接收到的响应数据
-    // printf("Write multiple registers response: ");
-    // for (int i = 0; i < 8; i++) {
-    //     printf("%02X ", resp[i]);
-    // }
-    // printf("\n");
+#if MODBUS_DEBUG
+    printf("RX(10): ");
+    for (int i = 0; i < total_len; i++) printf("%02X ", resp[i]);
+    printf("\n");
+#endif
 
-    // CRC校验
-    uint16_t resp_crc = (uint16_t)resp[6] | ((uint16_t)resp[7] << 8);
-    uint16_t calc_crc = _modbus_crc16(resp, 6);
-    if (resp_crc != calc_crc) {
-        // printf("CRC check failed for write multiple registers\n");
-        return MB_ERR_CRC;
-    }
+    if (total_len < 5) return MB_ERR_BAD_RESPONSE;
+    uint16_t resp_crc = (uint16_t)resp[total_len - 2] | ((uint16_t)resp[total_len - 1] << 8);
+    uint16_t calc_crc = _modbus_crc16(resp, total_len - 2);
+    if (resp_crc != calc_crc) return MB_ERR_CRC;
 
-    // 检查异常响应
-    if (resp[1] & 0x80) {
-        // printf("Exception response received: 0x%02X\n", resp[2]);
-        return MB_ERR_EXCEPTION;
-    }
+    if (resp[1] & 0x80) return MB_ERR_EXCEPTION;
 
-    // 验证响应内容
-    if (resp[0] != slave) {
-        // printf("Slave address mismatch in response\n");
-        return MB_ERR_BAD_RESPONSE;
-    }
-
-    if (resp[1] != 0x10) {
-        // printf("Function code mismatch in response\n");
-        return MB_ERR_BAD_RESPONSE;
-    }
-
-    // 验证起始地址和数量是否与请求一致
-    uint16_t resp_addr = (uint16_t)resp[2] << 8 | resp[3];
-    uint16_t resp_qty  = (uint16_t)resp[4] << 8 | resp[5];
-
-    if (resp_addr != addr || resp_qty != quantity) {
-        // printf("Address or quantity mismatch in response\n");
-        return MB_ERR_BAD_RESPONSE;
-    }
-
-    // printf("Write multiple registers successful: slave %d, start addr 0x%04X, qty %d\n",
-    //        slave, addr, quantity);
+    if (resp[1] != 0x10) return MB_ERR_BAD_RESPONSE;
+    uint16_t raddr = (uint16_t)resp[2] << 8 | resp[3];
+    uint16_t rqty  = (uint16_t)resp[4] << 8 | resp[5];
+    if (raddr != addr || rqty != quantity) return MB_ERR_BAD_RESPONSE;
 
     return MB_OK;
 }
