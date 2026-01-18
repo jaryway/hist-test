@@ -50,6 +50,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Core/Src/dma_db.c
     ${CMAKE_SOURCE_DIR}/Core/Src/motor.c
     ${CMAKE_SOURCE_DIR}/Core/BSP/bsp_modbus_master.c
+    ${CMAKE_SOURCE_DIR}/Core/Src/motor_mb.c
 )
 
 # Add include paths

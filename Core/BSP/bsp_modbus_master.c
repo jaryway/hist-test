@@ -205,8 +205,8 @@ MB_Status_t modbus_write_single_register(uint8_t slave, uint16_t addr, uint16_t 
     tx_data[1] = 0x06;
     tx_data[2] = (addr >> 8) & 0xFF;
     tx_data[3] = addr & 0xFF;
-    tx_data[4] = (value >> 8) & 0xFF;
-    tx_data[5] = value & 0xFF;
+    tx_data[4] = (value >> 8) & 0xFF; // 寄存器高字节
+    tx_data[5] = value & 0xFF;        // 寄存器高字节
     crc        = _modbus_crc16(tx_data, 6);
     tx_data[6] = crc & 0xFF;
     tx_data[7] = (crc >> 8) & 0xFF;
