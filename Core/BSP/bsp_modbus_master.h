@@ -18,7 +18,7 @@ typedef enum {
 
 /* 调试开关：定义为1 将打印发送/接收帧（使用 printf）*/
 #ifndef MODBUS_DEBUG
-#define MODBUS_DEBUG 0
+#define MODBUS_DEBUG 1
 #endif
 
 void modbus_init(UART_HandleTypeDef *huart_ptr, GPIO_TypeDef *de_gpio_port, uint16_t de_pin);

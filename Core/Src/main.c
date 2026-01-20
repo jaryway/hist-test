@@ -29,8 +29,9 @@
 #include <string.h>
 #include <math.h>
 #include "dma_db.h"
-#include "motor.h"
+// #include "motor.h"
 #include "bsp_modbus_master.h"
+#include "motor_mb.h"
 
 #define MODBUS_HUART huart1 // modbus 通信 com3
 #define LCD_HUART    huart2 // lcd 屏幕通信
@@ -75,9 +76,12 @@ static uint32_t last_time        = 0;
 
 DMA_DB_t dma_db_oc;
 
-Motor_t motor = {
-    .run_state = MOTOR_STOP,
-    .pulses    = 0,
+// Motor_t motor = {
+//     .run_state = MOTOR_STOP,
+//     .pulses    = 0,
+// };
+MotorMB_t motor_mb = {
+    .slave_addr = 0x01,
 };
 
 Profile_t motor42_profile = {
@@ -423,23 +427,26 @@ int main(void)
     //     motor_oc_start_it(&motor);
     // #endif
     uint16_t read_buffer[10];
-    uint16_t quantity = 4;
+    uint16_t quantity = 1;
     MB_Status_t status;
-    uint16_t write_values[4] = {0x1234, 0x5678, 0x9ABC, 0xDEF0};
+    // uint16_t write_values[4] = {0x1234, 0x5678, 0x9ABC, 0xDEF0};
 
     modbus_init(&MODBUS_HUART, RS485_RE_GPIO_Port, RS485_RE_Pin);
-    status = modbus_write_single_register(0x01, 0x1, 666, 1000);
-    printf("status=%d\r\n", status);
+    // motor_mb_init(&motor_mb, 0x01);
+    // motor_mb_set_speed(&motor_mb, SPEED);
 
-    status = modbus_write_multiple_registers(0x01, 0x0, 4, write_values, 1000);
-    printf("status=%d\r\n", status);
+    // status = modbus_write_single_register(0x01, 0x1, 666, 1000);
+    // printf("status=%d\r\n", status);
+
+    // status = modbus_write_multiple_registers(0x01, 0x0, 4, write_values, 1000);
+    // printf("status=%d\r\n", status);
 
     status = modbus_read_holding_registers(
-        0x01,                                      // 从站地址 (1)
-        0x0000,                                    // 起始寄存器地址 (0)
-        quantity,                                  // 读取寄存器数量 (2个)
-        read_buffer,                               // 存储结果的缓冲区
-        get_modbus_timeout(115200, quantity, 0x03) // 超时时间 (1秒)
+        0x01,                                     // 从站地址 (1)
+        0x01,                                   // 起始寄存器地址
+        quantity,                                 // 读取寄存器数量 (2个)
+        read_buffer,                              // 存储结果的缓冲区
+        get_modbus_timeout(19200, quantity, 0x03) // 超时时间 (1秒)
     );
 
     if (status == MB_OK) {
