@@ -34,6 +34,10 @@ void MX_USART1_UART_Init(void)
 {
 
   /* USER CODE BEGIN USART1_Init 0 */
+  /*
+  注意：
+  在 STM32 HAL（尤其是 F1 系列）中，如果启用了奇偶校验（Parity != NONE），
+  UART 的 WordLength 通常应设置为 9 位（UART_WORDLENGTH_9B），因为硬件把校验位当作第 9 位来处理 */
 
   /* USER CODE END USART1_Init 0 */
 
@@ -42,9 +46,9 @@ void MX_USART1_UART_Init(void)
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
   huart1.Init.BaudRate = 19200;
-  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.WordLength = UART_WORDLENGTH_9B;
   huart1.Init.StopBits = UART_STOPBITS_1;
-  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Parity = UART_PARITY_EVEN;
   huart1.Init.Mode = UART_MODE_TX_RX;
   huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart1.Init.OverSampling = UART_OVERSAMPLING_16;

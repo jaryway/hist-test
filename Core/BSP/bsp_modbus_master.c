@@ -106,10 +106,10 @@ MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t
     // 1.构造请求帧
     tx_data[0] = slave;                  // 从站地址
     tx_data[1] = 0x03;                   // 功能码
-    tx_data[2] = (addr >> 8) & 0xFF;     // 起始地址高字节
-    tx_data[3] = addr & 0xFF;            // 起始地址低字节
-    tx_data[4] = (quantity >> 8) & 0xFF; // 寄存器数量高字节
-    tx_data[5] = quantity & 0xFF;        // 寄存器数量低字节
+    tx_data[2] = (addr >> 8) & 0xFF;     // 起始地址高 8 位
+    tx_data[3] = addr & 0xFF;            // 起始地址低 8 位
+    tx_data[4] = (quantity >> 8) & 0xFF; // 寄存器数量高8位
+    tx_data[5] = quantity & 0xFF;        // 寄存器数量低8位
 
     // 2.计算CRC
     crc        = _modbus_crc16(tx_data, 6);
@@ -192,6 +192,10 @@ MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t
 
 /**
  * @brief  06功能码：写单路保持寄存器（分段接收）
+ * @param  slave 从站地址
+ * @param  addr 从站地址
+ * @param  value 待写入的值
+ * @param  timeout_ms 超时时间（ms）
  */
 MB_Status_t modbus_write_single_register(uint8_t slave, uint16_t addr, uint16_t value, uint32_t timeout_ms)
 {
@@ -262,6 +266,11 @@ MB_Status_t modbus_write_single_register(uint8_t slave, uint16_t addr, uint16_t 
 
 /**
  * @brief  16功能码：写多个保持寄存器（分段接收）
+ * @param slave 从站地址
+ * @param addr 寄存器起始地址
+ * @param quantity 寄存器数量
+ * @param values 待写入的寄存器值
+ * @param timeout_ms 超时时间（ms）
  */
 MB_Status_t modbus_write_multiple_registers(uint8_t slave, uint16_t addr, uint16_t quantity, const uint16_t *values, uint32_t timeout_ms)
 {
@@ -277,15 +286,15 @@ MB_Status_t modbus_write_multiple_registers(uint8_t slave, uint16_t addr, uint16
     uint16_t idx   = 0;
     tx_data[idx++] = slave;
     tx_data[idx++] = 0x10;
-    tx_data[idx++] = (addr >> 8) & 0xFF;
-    tx_data[idx++] = addr & 0xFF;
-    tx_data[idx++] = (quantity >> 8) & 0xFF;
-    tx_data[idx++] = quantity & 0xFF;
-    tx_data[idx++] = (uint8_t)data_bytes;
+    tx_data[idx++] = (addr >> 8) & 0xFF;     // 寄存器起始地址高 8 位
+    tx_data[idx++] = addr & 0xFF;            // 寄存器起始地址低 8 位
+    tx_data[idx++] = (quantity >> 8) & 0xFF; // 寄存器个数高 8 位
+    tx_data[idx++] = quantity & 0xFF;        // 寄存器个数低 8 位
+    tx_data[idx++] = (uint8_t)data_bytes;    // 数据字节数=寄存器个数的 2 倍
 
     for (uint16_t i = 0; i < quantity; i++) {
-        tx_data[idx++] = (values[i] >> 8) & 0xFF;
-        tx_data[idx++] = values[i] & 0xFF;
+        tx_data[idx++] = (values[i] >> 8) & 0xFF; // 第 n 个数据高8位
+        tx_data[idx++] = values[i] & 0xFF;        // 第 n 个数据低8位
     }
 
     uint16_t crc   = _modbus_crc16(tx_data, idx);
