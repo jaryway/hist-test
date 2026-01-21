@@ -2,6 +2,7 @@
 #include "stm32f1xx.h"
 
 #define REG_ADDR_CTRL_MODE     0x0200 // P02_00 控制模式
+#define REG_ADDR_EN            0x0307 // P03_07 电机使能
 #define REG_ADDR_POS           0x0B07 // P0B_07 绝对位置计数器 int32_t
 #define REG_ADDR_BUS_STATE     0x0B04 // P0B_04 总线状态字
 #define REG_ADDR_PHASE_CUR     0x0B18 // P0B_24 相电流有效值 float
@@ -41,7 +42,8 @@ typedef struct
     // __IO int32_t rest;              /* 记录new_step_delay中的余数，提高下一步计算的精度 */
 
     // int32_t pulses; /* 带方向的目标移动总步数 */
-    uint8_t reversed_dir; // 是否需要反转方向
+    __IO uint8_t motion_sta; /* 是否在运动？0：停止，1：运动 */
+    uint8_t reversed_dir;    // 是否需要反转方向
     uint32_t accel;
     uint32_t decel;
     uint32_t speed;
@@ -59,7 +61,13 @@ void motor_mb_set_decel(MotorMB_t *motor, uint32_t decel);
 int32_t motor_mb_get_current_position(MotorMB_t *motor);
 void motor_mb_move_to(MotorMB_t *motor, int32_t abs_position);
 void motor_mb_move(MotorMB_t *motor, int32_t rel_position);
-/* 检查电机是否运动到位 */
-uint8_t motor_mb_check_state(MotorMB_t *motor);
+
+void motor_mb_stop(MotorMB_t *motor);
+void motor_mb_e_stop(MotorMB_t *motor);
+
+/* 监控电机信息,要在循环中调用*/
+void motor_mb_process(MotorMB_t *motor);
 /* 读取相电流有效值 (原始值) */
 float motor_mb_get_phase_current(MotorMB_t *motor);
+/* 读取电机运行状态 */
+uint8_t motor_mb_is_stopped(MotorMB_t *motor);

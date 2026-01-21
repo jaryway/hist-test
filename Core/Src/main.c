@@ -430,15 +430,18 @@ int main(void)
 
     modbus_init(&MODBUS_HUART, RS485_RE_GPIO_Port, RS485_RE_Pin);
     motor_mb_init(&motor_mb, 0x01);
-    motor_mb_set_speed(&motor_mb, SPEED);
-    motor_mb_set_accel(&motor_mb, ACCEL);
-    motor_mb_set_decel(&motor_mb, DECEL);
-    motor_mb_move_to(&motor_mb, TOTAL_STEPS);
+    // motor_mb_set_speed(&motor_mb, SPEED);
+    // motor_mb_set_accel(&motor_mb, ACCEL);
+    // motor_mb_set_decel(&motor_mb, DECEL);
+    // motor_mb_move_to(&motor_mb, TOTAL_STEPS);
+    // HAL_Delay(1000);
+    // motor_mb_e_stop(&motor_mb);
 
-    // uint16_t quantity = 2;
-    // uint16_t read_buffer[2];
-    // uint16_t write_values[2];
-    // MB_Status_t status;
+    uint16_t quantity = 2;
+    uint16_t read_buffer[2];
+    uint16_t write_values[2];
+    MB_Status_t status;
+    status = modbus_read_holding_registers(0x01, REG_ADDR_POS, quantity, read_buffer, 1000);
 
     // status = modbus_write_single_register(0x01, 0x1, 666, 1000);
     // printf("status=%d\r\n", status);
@@ -449,124 +452,20 @@ int main(void)
     // status = modbus_write_multiple_registers(0x01, REG_ADDR_SPEED, quantity, write_values, 1000);
     // printf("write multiple registers status=%d\r\n", status);
 
-    // // 1.设置速度
-    // uint32_to_regs_le(SPEED, write_values);
-    // printf("set speed\n");
-    // status = modbus_write_multiple_registers(
-    //     0x01,                                     // 从站地址 (1)
-    //     REG_ADDR_SPEED,                           // 起始寄存器地址
-    //     quantity,                                 // 读取寄存器数量 (2个)
-    //     write_values,                             // 存储结果的缓冲区
-    //     get_modbus_timeout(19200, quantity, 0x03) // 超时时间 (1秒)
-    // );
+    if (status == MB_OK) {
+        printf("Modbus read successful!\r\n");
+        printf("Read %d registers from slave 0x%02X:\r\n", quantity, 0x01);
 
-    // if (status != MB_OK) {
-    //     printf("set speed error\n");
-    // } else {
-    //     printf("set speed ok\n");
-    // }
-
-    // // 2.设置加速度
-    // printf("set accel\n");
-    // uint32_to_regs_le(ACCEL, write_values);
-    // status = modbus_write_multiple_registers(
-    //     0x01,                                     // 从站地址 (1)
-    //     REG_ADDR_ACCEL,                           // 起始寄存器地址
-    //     quantity,                                 // 读取寄存器数量 (2个)
-    //     write_values,                             // 存储结果的缓冲区
-    //     get_modbus_timeout(19200, quantity, 0x03) // 超时时间 (1秒)
-    // );
-    // if (status != MB_OK) {
-    //     printf("set accel error\n");
-    // } else {
-    //     printf("set accel ok\n");
-    // }
-    // // 3.设置减速度
-    // printf("set decel\n");
-    // uint32_to_regs_le(DECEL, write_values);
-    // status = modbus_write_multiple_registers(
-    //     0x01,                                     // 从站地址 (1)
-    //     REG_ADDR_DECEL,                           // 起始寄存器地址
-    //     quantity,                                 // 读取寄存器数量 (2个)
-    //     write_values,                             // 存储结果的缓冲区
-    //     get_modbus_timeout(19200, quantity, 0x03) // 超时时间 (1秒)
-    // );
-    // if (status != MB_OK) {
-    //     printf("set decel error\n");
-    // } else {
-    //     printf("set decel ok\n");
-    // }
-
-    // // 4.设置目标位置
-    // printf("set target pos\n");
-    // int32_to_regs_le(0, write_values);
-    // status = modbus_write_multiple_registers(
-    //     0x01,                                     // 从站地址 (1)
-    //     REG_ADDR_TARGET_POS,                      // 起始寄存器地址
-    //     quantity,                                 // 读取寄存器数量 (2个)
-    //     write_values,                             // 存储结果的缓冲区
-    //     get_modbus_timeout(19200, quantity, 0x03) // 超时时间 (1秒)
-    // );
-
-    // if (status != MB_OK) {
-    //     printf("set target pos error\n");
-    // } else {
-    //     printf("set target pos ok\n");
-    // }
-
-    // // 5. 启动
-    // printf("start\n");
-    // quantity        = 1;
-    // write_values[0] = 0x07; // 绝对定位运动立即执行
-    // status          = modbus_write_multiple_registers(
-    //     0x01,                                     // 从站地址 (1)
-    //     REG_ADDR_BUS_CTRL_MODE,                   // 起始寄存器地址
-    //     quantity,                                 // 读取寄存器数量 (2个)
-    //     write_values,                             // 存储结果的缓冲区
-    //     get_modbus_timeout(19200, quantity, 0x03) // 超时时间 (1秒)
-    // );
-
-    // if (status != MB_OK) {
-    //     printf("start error\n");
-    // } else {
-    //     printf("start ok\n");
-    // }
-
-    // 6. 读取状态
-    // printf("read state\n");
-    // quantity = 1;
-    // while (1) {
-    //     HAL_Delay(500);
-    //     status = modbus_read_holding_registers(
-    //         0x01,                                     // 从站地址 (1)
-    //         REG_ADDR_BUS_STATE,                       // 起始寄存器地址
-    //         quantity,                                 // 读取寄存器数量 (2个)
-    //         read_buffer,                              // 存储结果的缓冲区
-    //         get_modbus_timeout(19200, quantity, 0x03) // 超时时间 (1秒)
-    //     );
-    //     uint8_t state = (read_buffer[0] & (1 << 0)) != 0;
-    //     printf("regs[0]=0x%04X\n", read_buffer[0]);
-    //     if (state) {
-    //         printf("state=%d\n", state);
-    //         printf("motor stop\n");
-    //         HAL_Delay(500);
-    //     }
-    // }
-
-    // if (status == MB_OK) {
-    //     printf("Modbus read successful!\r\n");
-    //     printf("Read %d registers from slave 0x%02X:\r\n", quantity, 0x01);
-
-    //     // 打印读取到的数据
-    //     for (int i = 0; i < quantity; i++) {
-    //         printf("Register[0x%04X] = 0x%04X (%d)\r\n",
-    //                0x0000 + i, read_buffer[i], read_buffer[i]);
-    //     }
-    //     // int32_t read_value = regs_to_int32_le(read_buffer);
-    //     // printf("Read value: %ld\r\n", read_value);
-    // } else {
-    //     printf("Modbus read failed with status: %d\r\n", status);
-    // }
+        // 打印读取到的数据
+        for (int i = 0; i < quantity; i++) {
+            printf("Register[0x%04X] = 0x%04X (%d)\r\n",
+                   0x0000 + i, read_buffer[i], read_buffer[i]);
+        }
+        // int32_t read_value = regs_to_int32_le(read_buffer);
+        // printf("Read value: %ld\r\n", read_value);
+    } else {
+        printf("Modbus read failed with status: %d\r\n", status);
+    }
 
     // modbus_write_06(0x01, 0x0000, 0x0001);
 
@@ -589,11 +488,11 @@ int main(void)
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
-        if (motor_mb_check_state(&motor_mb) == 1) {
+        motor_mb_process(&motor_mb);
+        if (motor_mb_is_stopped(&motor_mb)) {
             printf("Motor stopped\r\n");
             HAL_Delay(1000);
-            motor_mb_move(&motor_mb, d == 0 ? -TOTAL_STEPS : TOTAL_STEPS);
-
+            // motor_mb_move(&motor_mb, d == 0 ? -TOTAL_STEPS : TOTAL_STEPS);
             HAL_Delay(1000);
             d = !d;
         }
