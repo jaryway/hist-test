@@ -590,11 +590,10 @@ int main(void)
 
         /* USER CODE BEGIN 3 */
         if (motor_mb_check_state(&motor_mb) == 1) {
-            printf("Motor stopped\r\n");
-            HAL_Delay(1000);
+            printf("Motor stopped, d=%d\r\n",d);
+            // HAL_Delay(1000);
             motor_mb_move(&motor_mb, d == 0 ? -TOTAL_STEPS : TOTAL_STEPS);
-
-            HAL_Delay(1000);
+            // HAL_Delay(1000);
             d = !d;
         }
     }

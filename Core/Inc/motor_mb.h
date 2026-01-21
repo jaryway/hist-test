@@ -41,6 +41,8 @@ typedef struct
     // __IO int32_t rest;              /* 记录new_step_delay中的余数，提高下一步计算的精度 */
 
     // int32_t pulses; /* 带方向的目标移动总步数 */
+
+    __IO uint8_t motion_sta; /* 是否在运动？0：停止，1：运动 */
     uint8_t reversed_dir; // 是否需要反转方向
     uint32_t accel;
     uint32_t decel;
