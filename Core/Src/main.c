@@ -492,7 +492,7 @@ int main(void)
         if (motor_mb_is_stopped(&motor_mb)) {
             printf("Motor stopped\r\n");
             HAL_Delay(1000);
-            // motor_mb_move(&motor_mb, d == 0 ? -TOTAL_STEPS : TOTAL_STEPS);
+            motor_mb_move(&motor_mb, d == 0 ? -TOTAL_STEPS : TOTAL_STEPS);
             HAL_Delay(1000);
             d = !d;
         }

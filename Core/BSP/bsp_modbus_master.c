@@ -6,23 +6,23 @@
 
 /* 可调项：发送后等待 TC 的最大等待（ms） */
 #ifndef MODBUS_TC_WAIT_MS
-#define MODBUS_TC_WAIT_MS 1000
+#define MODBUS_TC_WAIT_MS 1
 #endif
 
-static UART_HandleTypeDef *mb_huart   = NULL;
-static GPIO_TypeDef *mb_de_port       = NULL;
-static uint16_t mb_de_pin             = 0;
-static volatile uint8_t is_busy       = 0;
+static UART_HandleTypeDef *mb_huart = NULL;
+static GPIO_TypeDef *mb_de_port     = NULL;
+static uint16_t mb_de_pin           = 0;
+static volatile uint8_t is_busy     = 0;
 
 static void busy(void)
 {
-    // is_busy = 1;
+    is_busy = 1;
     // printf("-------------------busy\n");
 }
 
 static void unbusy(void)
 {
-    // is_busy = 0;
+    is_busy = 0;
     // printf("==================unbusy\n");
 }
 
@@ -73,19 +73,16 @@ static MB_Status_t _modbus_send(uint8_t *data, uint16_t len, uint32_t timeout_ms
     if (!mb_huart) return MB_ERR_HW;
 
     _rs485_de_enable(); // 启用发送
-    delay_us(300);
+    // delay_us(500);
+    HAL_Delay(1);
 
     if (HAL_UART_Transmit(mb_huart, data, len, timeout_ms) != HAL_OK) {
-
         _rs485_de_disable();
-
         return MB_ERR_HW;
     }
 
     if (_wait_for_tc(MODBUS_TC_WAIT_MS) != HAL_OK) {
-
         _rs485_de_disable();
-
         return MB_ERR_HW;
     }
 
