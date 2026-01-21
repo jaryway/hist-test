@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include "debug.h"
 
-#define CHECK_INTERVAL_MS 20
+#define CHECK_INTERVAL_MS 100
 
 uint16_t regs[2];
 uint32_t timeout_ms             = 1000;

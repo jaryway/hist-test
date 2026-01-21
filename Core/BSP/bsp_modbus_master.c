@@ -12,18 +12,17 @@
 static UART_HandleTypeDef *mb_huart   = NULL;
 static GPIO_TypeDef *mb_de_port       = NULL;
 static uint16_t mb_de_pin             = 0;
-static volatile uint8_t mb_bus_locked = 0;
 static volatile uint8_t is_busy       = 0;
 
 static void busy(void)
 {
-    is_busy = 1;
+    // is_busy = 1;
     // printf("-------------------busy\n");
 }
 
 static void unbusy(void)
 {
-    is_busy = 0;
+    // is_busy = 0;
     // printf("==================unbusy\n");
 }
 
