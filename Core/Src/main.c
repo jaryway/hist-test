@@ -430,12 +430,16 @@ int main(void)
 
     modbus_init(&MODBUS_HUART, RS485_RE_GPIO_Port, RS485_RE_Pin);
     motor_mb_init(&motor_mb, 0x01);
-    // motor_mb_set_speed(&motor_mb, SPEED);
-    // motor_mb_set_accel(&motor_mb, ACCEL);
-    // motor_mb_set_decel(&motor_mb, DECEL);
+    motor_mb_set_speed(&motor_mb, SPEED);
+    motor_mb_set_accel(&motor_mb, ACCEL);
+    motor_mb_set_decel(&motor_mb, DECEL);
     // motor_mb_move_to(&motor_mb, TOTAL_STEPS);
+    motor_mb_homing(&motor_mb);
     // HAL_Delay(1000);
-    // motor_mb_e_stop(&motor_mb);
+    // motor_mb_stop(&motor_mb);
+    // motor_mb_move_to(&motor_mb, 0);
+    // HAL_Delay(1000);
+    // motor_mb_stop(&motor_mb);
 
     uint16_t quantity = 2;
     uint16_t read_buffer[2];
@@ -490,10 +494,10 @@ int main(void)
         /* USER CODE BEGIN 3 */
         motor_mb_process(&motor_mb);
         if (motor_mb_is_stopped(&motor_mb)) {
-            printf("Motor stopped\r\n");
-            HAL_Delay(1000);
-            motor_mb_move(&motor_mb, d == 0 ? -TOTAL_STEPS : TOTAL_STEPS);
-            HAL_Delay(1000);
+            // printf("Motor stopped\r\n");
+            // HAL_Delay(1000);
+            // motor_mb_move(&motor_mb, d == 0 ? -TOTAL_STEPS : TOTAL_STEPS);
+            // HAL_Delay(1000);
             d = !d;
         }
     }

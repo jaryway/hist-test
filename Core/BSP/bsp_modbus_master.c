@@ -14,17 +14,17 @@ static GPIO_TypeDef *mb_de_port     = NULL;
 static uint16_t mb_de_pin           = 0;
 static volatile uint8_t is_busy     = 0;
 
-static void busy(void)
-{
-    is_busy = 1;
-    // printf("-------------------busy\n");
-}
+// static void busy(void)
+// {
+//     // is_busy = 1;
+//     // printf("-------------------busy\n");
+// }
 
-static void unbusy(void)
-{
-    is_busy = 0;
-    // printf("==================unbusy\n");
-}
+// static void unbusy(void)
+// {
+//     // is_busy = 0;
+//     // printf("==================unbusy\n");
+// }
 
 /* CRC16 (Modbus) */
 static uint16_t _modbus_crc16(const uint8_t *buf, uint16_t len)
@@ -120,20 +120,14 @@ void modbus_init(UART_HandleTypeDef *huart_ptr, GPIO_TypeDef *de_gpio_port, uint
  */
 MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t quantity, uint16_t *dest, uint32_t timeout_ms)
 {
-    if (is_busy) {
-        return MB_ERR_BUSY;
-    }
 
-    busy();
+    if (!mb_huart || !dest)
+        return MB_ERR_PARAM;
 
-    if (!mb_huart || !dest) {
-        unbusy();
+    if (quantity == 0 || quantity > 125)
         return MB_ERR_PARAM;
-    }
-    if (quantity == 0 || quantity > 125) {
-        unbusy();
-        return MB_ERR_PARAM;
-    } // Modbus 单次最多125寄存器
+
+    // Modbus 单次最多125寄存器
 
     uint8_t tx_data[8];
     uint16_t crc;
@@ -159,7 +153,7 @@ MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t
 
     // 3.发送请求（使用 timeout_ms 作为发送超时）
     if (_modbus_send(tx_data, 8, timeout_ms) != MB_OK) {
-        unbusy();
+
         return MB_ERR_HW;
     }
 
@@ -170,7 +164,7 @@ MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t
     uint32_t t_start = HAL_GetTick();
     MB_Status_t r    = _recv_remaining(resp, 2, t_start, timeout_ms);
     if (r != MB_OK) {
-        unbusy();
+
         return r;
     }
 
@@ -184,7 +178,7 @@ MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t
         // 异常应答：剩余 ExceptionCode(1) + CRC(2)
         r = _recv_remaining(resp + 2, 3, t_start, timeout_ms);
         if (r != MB_OK) {
-            unbusy();
+
             return r;
         }
         total_len = 5;
@@ -192,24 +186,24 @@ MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t
         // 正常应答：接收 ByteCount (1)
         r = _recv_remaining(resp + 2, 1, t_start, timeout_ms);
         if (r != MB_OK) {
-            unbusy();
+
             return r;
         }
         uint8_t byte_count = resp[2];
         // 校验长度合理性
         if (byte_count != 2 * quantity) {
-            unbusy();
+
             return MB_ERR_BAD_RESPONSE;
         }
         // 再接收 data + CRC
         uint16_t need = (uint16_t)byte_count + 2;
         if (need + 3 > MODBUS_MAX_ADU_LEN) {
-            unbusy();
+
             return MB_ERR_BAD_RESPONSE;
         }
         r = _recv_remaining(resp + 3, need, t_start, timeout_ms);
         if (r != MB_OK) {
-            unbusy();
+
             return r;
         }
         total_len = 3 + need;
@@ -223,29 +217,29 @@ MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t
 
     // CRC 校验
     if (total_len < 5) {
-        unbusy();
+
         return MB_ERR_BAD_RESPONSE;
     }
     uint16_t resp_crc = (uint16_t)resp[total_len - 2] | ((uint16_t)resp[total_len - 1] << 8);
     uint16_t calc_crc = _modbus_crc16(resp, total_len - 2);
     if (resp_crc != calc_crc) {
-        unbusy();
+
         return MB_ERR_CRC;
     }
 
     if (resp[1] & 0x80) {
         // 从站返回异常码在 resp[2]
-        unbusy();
+
         return MB_ERR_EXCEPTION;
     }
 
     if (resp[1] != 0x03) {
-        unbusy();
+
         return MB_ERR_BAD_RESPONSE;
     }
     uint8_t byte_count = resp[2];
     if (byte_count != 2 * quantity) {
-        unbusy();
+
         return MB_ERR_BAD_RESPONSE;
     }
 
@@ -255,7 +249,7 @@ MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t
         uint16_t lo = resp[3 + 2 * i + 1];
         dest[i]     = (uint16_t)((hi << 8) | lo);
     }
-    unbusy();
+
     return MB_OK;
 }
 
@@ -268,12 +262,9 @@ MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t
  */
 MB_Status_t modbus_write_single_register(uint8_t slave, uint16_t addr, uint16_t value, uint32_t timeout_ms)
 {
-    if (is_busy) {
-        return MB_ERR_BUSY;
-    }
-    busy();
+
     if (!mb_huart) {
-        unbusy();
+
         return MB_ERR_PARAM;
     }
 
@@ -298,7 +289,7 @@ MB_Status_t modbus_write_single_register(uint8_t slave, uint16_t addr, uint16_t 
 #endif
 
     if (_modbus_send(tx_data, 8, timeout_ms) != MB_OK) {
-        unbusy();
+
         return MB_ERR_HW;
     }
 
@@ -307,7 +298,7 @@ MB_Status_t modbus_write_single_register(uint8_t slave, uint16_t addr, uint16_t 
     uint32_t t_start = HAL_GetTick();
     MB_Status_t r    = _recv_remaining(resp, 2, t_start, timeout_ms);
     if (r != MB_OK) {
-        unbusy();
+        //
         return r;
     }
 
@@ -317,7 +308,7 @@ MB_Status_t modbus_write_single_register(uint8_t slave, uint16_t addr, uint16_t 
     if (func & 0x80) {
         r = _recv_remaining(resp + 2, 3, t_start, timeout_ms);
         if (r != MB_OK) {
-            unbusy();
+            //
             return r;
         }
         total_len = 5;
@@ -325,7 +316,7 @@ MB_Status_t modbus_write_single_register(uint8_t slave, uint16_t addr, uint16_t 
         // 完整回显为 8 字节
         r = _recv_remaining(resp + 2, 6, t_start, timeout_ms);
         if (r != MB_OK) {
-            unbusy();
+
             return r;
         }
         total_len = 8;
@@ -338,33 +329,27 @@ MB_Status_t modbus_write_single_register(uint8_t slave, uint16_t addr, uint16_t 
 #endif
 
     if (total_len < 5) {
-        unbusy();
+
         return MB_ERR_BAD_RESPONSE;
     }
     uint16_t resp_crc = (uint16_t)resp[total_len - 2] | ((uint16_t)resp[total_len - 1] << 8);
     uint16_t calc_crc = _modbus_crc16(resp, total_len - 2);
-    if (resp_crc != calc_crc) {
-        unbusy();
+    if (resp_crc != calc_crc)
         return MB_ERR_CRC;
-    }
 
-    if (resp[1] & 0x80) {
-        unbusy();
+    if (resp[1] & 0x80)
         return MB_ERR_EXCEPTION;
-    }
 
-    if (resp[1] != 0x06) {
-        unbusy();
+    if (resp[1] != 0x06)
         return MB_ERR_BAD_RESPONSE;
-    }
+
     uint16_t raddr = (uint16_t)resp[2] << 8 | resp[3];
     uint16_t rval  = (uint16_t)resp[4] << 8 | resp[5];
     if (raddr != addr || rval != value) {
-        unbusy();
+
         return MB_ERR_BAD_RESPONSE;
     }
 
-    unbusy();
     return MB_OK;
 }
 
@@ -378,17 +363,11 @@ MB_Status_t modbus_write_single_register(uint8_t slave, uint16_t addr, uint16_t 
  */
 MB_Status_t modbus_write_multiple_registers(uint8_t slave, uint16_t addr, uint16_t quantity, const uint16_t *values, uint32_t timeout_ms)
 {
-    if (is_busy)
-        return MB_ERR_BUSY;
-
-    busy();
 
     if (!mb_huart || !values) {
-        unbusy();
         return MB_ERR_PARAM;
     }
     if (quantity == 0 || quantity > 123) {
-        unbusy();
         return MB_ERR_PARAM;
     } // 常见限制：最多123寄存器
 
@@ -396,7 +375,6 @@ MB_Status_t modbus_write_multiple_registers(uint8_t slave, uint16_t addr, uint16
     uint16_t data_bytes = quantity * 2;
     uint16_t req_len    = 1 + 1 + 2 + 2 + 1 + data_bytes + 2; // Slave + Func + Addr(2) + Qty(2) + ByteCount + Data + CRC
     if (req_len > MODBUS_MAX_ADU_LEN) {
-        unbusy();
         return MB_ERR_PARAM;
     }
 
@@ -426,7 +404,7 @@ MB_Status_t modbus_write_multiple_registers(uint8_t slave, uint16_t addr, uint16
 #endif
 
     if (_modbus_send(tx_data, idx, timeout_ms) != MB_OK) {
-        unbusy();
+
         return MB_ERR_HW;
     }
 
@@ -436,7 +414,7 @@ MB_Status_t modbus_write_multiple_registers(uint8_t slave, uint16_t addr, uint16
     uint32_t t_start = HAL_GetTick();
     MB_Status_t r    = _recv_remaining(resp, 2, t_start, timeout_ms);
     if (r != MB_OK) {
-        unbusy();
+
         return r;
     }
 
@@ -445,14 +423,14 @@ MB_Status_t modbus_write_multiple_registers(uint8_t slave, uint16_t addr, uint16
     if (func & 0x80) {
         r = _recv_remaining(resp + 2, 3, t_start, timeout_ms);
         if (r != MB_OK) {
-            unbusy();
+
             return r;
         }
         total_len = 5;
     } else {
         r = _recv_remaining(resp + 2, 6, t_start, timeout_ms);
         if (r != MB_OK) {
-            unbusy();
+
             return r;
         }
         total_len = 8;
@@ -465,33 +443,28 @@ MB_Status_t modbus_write_multiple_registers(uint8_t slave, uint16_t addr, uint16
 #endif
 
     if (total_len < 5) {
-        unbusy();
         return MB_ERR_BAD_RESPONSE;
     }
     uint16_t resp_crc = (uint16_t)resp[total_len - 2] | ((uint16_t)resp[total_len - 1] << 8);
     uint16_t calc_crc = _modbus_crc16(resp, total_len - 2);
 
     if (resp_crc != calc_crc) {
-        unbusy();
         return MB_ERR_CRC;
     }
 
     if (resp[1] & 0x80) {
-        unbusy();
         return MB_ERR_EXCEPTION;
     }
 
     if (resp[1] != 0x10) {
-        unbusy();
+
         return MB_ERR_BAD_RESPONSE;
     }
     uint16_t raddr = (uint16_t)resp[2] << 8 | resp[3];
     uint16_t rqty  = (uint16_t)resp[4] << 8 | resp[5];
     if (raddr != addr || rqty != quantity) {
-        unbusy();
         return MB_ERR_BAD_RESPONSE;
     }
 
-    unbusy();
     return MB_OK;
 }

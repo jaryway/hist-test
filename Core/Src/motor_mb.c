@@ -91,6 +91,46 @@ int32_t motor_mb_get_current_position(MotorMB_t *motor)
     return (int32_t)(((uint32_t)buf[1] << 16) | buf[0]);
 }
 
+void motor_mb_homing(MotorMB_t *motor)
+{
+
+    MB_Status_t res;
+    // 0.设置回零模式
+    // 1.设置回零查询速度
+    // 2.设置回零速度
+    // 3.设置回零加减速度
+    uint8_t quantity = 7;
+    uint16_t values[7];
+    /**
+     * 回零模式 6，以高速向负方向回零，遇到原点感应器信号时，低速回零，然后停止
+     */
+
+    uint32_t home_search_speed = motor->speed / 2;
+    uint32_t home_speed        = motor->speed / 3;
+    uint32_t home_decel        = motor->decel / 2;
+
+    values[0] = 6;                                    // 回零模式
+    uint32_to_regs_le(home_search_speed, &values[1]); // 搜索速度（2个寄存器）
+    uint32_to_regs_le(home_speed, &values[3]);        // 回零速度（2个寄存器）
+    uint32_to_regs_le(home_decel, &values[5]);        // 回零减速度（2个寄存器）
+
+    res = modbus_write_multiple_registers(motor->slave_addr, REG_ADDR_HOME_MODE, quantity, values, timeout_ms);
+
+    if (res != MB_OK) {
+        PRINT_DEBUG("Motor %d: Failed to set home mode\n", motor->slave_addr);
+        return;
+    }
+
+    // 2. 触发绝对定位运动（P0D-08 =128-回零运动）
+    res = modbus_write_single_register(motor->slave_addr, REG_ADDR_BUS_CTRL_MODE, 128, timeout_ms);
+    if (res != MB_OK) {
+        PRINT_DEBUG("Motor %d: Failed to trigger home\n", motor->slave_addr);
+        return;
+    }
+    // 触发回零成功
+    PRINT_DEBUG("Motor %d: Trigger home\n", motor->slave_addr);
+}
+
 /**
  * @brief 运动至指定位置
  * @param motor      电机结构体
@@ -124,7 +164,7 @@ void motor_mb_move_to(MotorMB_t *motor, int32_t abs_position)
     printf("write target pos \n");
 
     // 2. 触发绝对定位运动（P0D-08 = 7）
-     res = modbus_write_single_register(motor->slave_addr, REG_ADDR_BUS_CTRL_MODE, 0x0007, timeout_ms);
+    res = modbus_write_single_register(motor->slave_addr, REG_ADDR_BUS_CTRL_MODE, 0x0007, timeout_ms);
     printf("write ctrl mode\n");
 
     if (res != MB_OK) {

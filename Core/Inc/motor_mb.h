@@ -1,26 +1,30 @@
 #include "stm32f1xx_hal.h"
 #include "stm32f1xx.h"
 
-#define REG_ADDR_CTRL_MODE     0x0200 // P02_00 控制模式
-#define REG_ADDR_EN            0x0307 // P03_07 电机使能
-#define REG_ADDR_POS           0x0B07 // P0B_07 绝对位置计数器 int32_t
-#define REG_ADDR_BUS_STATE     0x0B04 // P0B_04 总线状态字
-#define REG_ADDR_PHASE_CUR     0x0B18 // P0B_24 相电流有效值 float
-#define REG_ADDR_BUS_CTRL_MODE 0x0D08 // P0D-08 总线控制字
-#define REG_ADDR_RUN_MODE      0x1003 // 运行模式
-#define REG_ADDR_TARGET_POS    0x100E // P10_14 PP 模式目标位置 int32_t
-#define REG_ADDR_MAX_SPEED     0x1017 // P10_23 最大速度限制 int32_t
-#define REG_ADDR_SPEED         0x1019 // P10_25 模式速度  uint32_t
-#define REG_ADDR_ACCEL         0x101B // P10_27 PP 模式加速度  uint32_t
-#define REG_ADDR_DECEL         0x101D // P10_29 PP 模式减速度  uint32_t
-#define REG_ADDR_HOME_MODE     0x1023 // P10_35 回零模式，支持 1~14、17~35
+#define REG_ADDR_CTRL_MODE         0x0200 // P02_00 控制模式
+#define REG_ADDR_DIR               0x0201 // P02-02 旋转方向，1=正转，0=反转
+#define REG_ADDR_EN                0x0307 // P03_07 电机使能
+#define REG_ADDR_POS               0x0B07 // P0B_07 绝对位置计数器 int32_t
+#define REG_ADDR_BUS_STATE         0x0B04 // P0B_04 总线状态字
+#define REG_ADDR_PHASE_CUR         0x0B18 // P0B_24 相电流有效值 float
+#define REG_ADDR_BUS_CTRL_MODE     0x0D08 // P0D-08 总线控制字
+#define REG_ADDR_RUN_MODE          0x1003 // 运行模式
+#define REG_ADDR_TARGET_POS        0x100E // P10_14 PP 模式目标位置 int32_t
+#define REG_ADDR_MAX_SPEED         0x1017 // P10_23 最大速度限制 int32_t
+#define REG_ADDR_SPEED             0x1019 // P10_25 模式速度  uint32_t
+#define REG_ADDR_ACCEL             0x101B // P10_27 PP 模式加速度  uint32_t
+#define REG_ADDR_DECEL             0x101D // P10_29 PP 模式减速度  uint32_t
+#define REG_ADDR_HOME_MODE         0x1023 // P10_35 回零模式，支持 1~14、17~35
+#define REG_ADDR_HOME_SPEED        0x1024 // P10-36 回零速度
+#define REG_ADDR_HOME_SEARCH_SPEED 0x1026 // P10_38 回零查询速度
+#define REG_ADDR_HOME_DECEL        0x1028 // P10_40 回零加减速度
 
-#define SPR                    800                   /* 旋转一圈需要的脉冲数 */
-#define RPM                    3000                  // 电机最高转速
-#define TOTAL_STEPS            1650 / 125 * 12 * SPR // 总步数= 导轨行程/同步轮周长*减速比*每圈脉冲数
-#define SPEED                  RPM / 60 * SPR        // 电机速度
-#define ACCEL                  (SPEED / 1.0f)        // 加速度 公式 a=v/t
-#define DECEL                  (SPEED / 0.8f)        // 减速度 公式 a=v/t
+#define SPR                        800                   /* 旋转一圈需要的脉冲数 */
+#define RPM                        3000                  // 电机最高转速
+#define TOTAL_STEPS                1650 / 125 * 12 * SPR // 总步数= 导轨行程/同步轮周长*减速比*每圈脉冲数
+#define SPEED                      RPM / 60 * SPR        // 电机速度
+#define ACCEL                      (SPEED / 1.0f)        // 加速度 公式 a=v/t
+#define DECEL                      (SPEED / 0.8f)        // 减速度 公式 a=v/t
 
 typedef struct
 {
@@ -43,7 +47,8 @@ typedef struct
 
     // int32_t pulses; /* 带方向的目标移动总步数 */
     __IO uint8_t motion_sta; /* 是否在运动？0：停止，1：运动 */
-    uint8_t reversed_dir;    // 是否需要反转方向
+    // __IO uint8_t run_mode;   /* 0 = 运动 1 = 回零 */
+    uint8_t reversed_dir; // 是否需要反转方向
 
     uint32_t accel;
     uint32_t decel;
@@ -60,6 +65,7 @@ void motor_mb_set_speed(MotorMB_t *motor, uint32_t speed);
 void motor_mb_set_accel(MotorMB_t *motor, uint32_t accel);
 void motor_mb_set_decel(MotorMB_t *motor, uint32_t decel);
 int32_t motor_mb_get_current_position(MotorMB_t *motor);
+void motor_mb_homing(MotorMB_t *motor);
 void motor_mb_move_to(MotorMB_t *motor, int32_t abs_position);
 void motor_mb_move(MotorMB_t *motor, int32_t rel_position);
 
