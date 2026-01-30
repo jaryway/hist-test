@@ -85,7 +85,7 @@ static MB_Status_t _modbus_send(uint8_t *data, uint16_t len, uint32_t timeout_ms
         _rs485_de_disable();
         return MB_ERR_HW;
     }
-
+    HAL_Delay(1);
     _rs485_de_disable();
 
     // PRINT_DEBUG("DE after disable = %d\n", (int)HAL_GPIO_ReadPin(mb_de_port, mb_de_pin));
@@ -164,7 +164,6 @@ MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t
     uint32_t t_start = HAL_GetTick();
     MB_Status_t r    = _recv_remaining(resp, 2, t_start, timeout_ms);
     if (r != MB_OK) {
-
         return r;
     }
 
@@ -177,33 +176,30 @@ MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t
     if (func & 0x80) {
         // 异常应答：剩余 ExceptionCode(1) + CRC(2)
         r = _recv_remaining(resp + 2, 3, t_start, timeout_ms);
-        if (r != MB_OK) {
 
+        if (r != MB_OK) {
             return r;
         }
         total_len = 5;
     } else {
+
         // 正常应答：接收 ByteCount (1)
         r = _recv_remaining(resp + 2, 1, t_start, timeout_ms);
         if (r != MB_OK) {
-
             return r;
         }
         uint8_t byte_count = resp[2];
         // 校验长度合理性
         if (byte_count != 2 * quantity) {
-
             return MB_ERR_BAD_RESPONSE;
         }
         // 再接收 data + CRC
         uint16_t need = (uint16_t)byte_count + 2;
         if (need + 3 > MODBUS_MAX_ADU_LEN) {
-
             return MB_ERR_BAD_RESPONSE;
         }
         r = _recv_remaining(resp + 3, need, t_start, timeout_ms);
         if (r != MB_OK) {
-
             return r;
         }
         total_len = 3 + need;
@@ -217,29 +213,24 @@ MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t
 
     // CRC 校验
     if (total_len < 5) {
-
         return MB_ERR_BAD_RESPONSE;
     }
     uint16_t resp_crc = (uint16_t)resp[total_len - 2] | ((uint16_t)resp[total_len - 1] << 8);
     uint16_t calc_crc = _modbus_crc16(resp, total_len - 2);
     if (resp_crc != calc_crc) {
-
         return MB_ERR_CRC;
     }
 
     if (resp[1] & 0x80) {
         // 从站返回异常码在 resp[2]
-
         return MB_ERR_EXCEPTION;
     }
 
     if (resp[1] != 0x03) {
-
         return MB_ERR_BAD_RESPONSE;
     }
     uint8_t byte_count = resp[2];
     if (byte_count != 2 * quantity) {
-
         return MB_ERR_BAD_RESPONSE;
     }
 
@@ -264,7 +255,6 @@ MB_Status_t modbus_write_single_register(uint8_t slave, uint16_t addr, uint16_t 
 {
 
     if (!mb_huart) {
-
         return MB_ERR_PARAM;
     }
 
@@ -404,7 +394,6 @@ MB_Status_t modbus_write_multiple_registers(uint8_t slave, uint16_t addr, uint16
 #endif
 
     if (_modbus_send(tx_data, idx, timeout_ms) != MB_OK) {
-
         return MB_ERR_HW;
     }
 
@@ -414,7 +403,6 @@ MB_Status_t modbus_write_multiple_registers(uint8_t slave, uint16_t addr, uint16
     uint32_t t_start = HAL_GetTick();
     MB_Status_t r    = _recv_remaining(resp, 2, t_start, timeout_ms);
     if (r != MB_OK) {
-
         return r;
     }
 
@@ -423,7 +411,6 @@ MB_Status_t modbus_write_multiple_registers(uint8_t slave, uint16_t addr, uint16
     if (func & 0x80) {
         r = _recv_remaining(resp + 2, 3, t_start, timeout_ms);
         if (r != MB_OK) {
-
             return r;
         }
         total_len = 5;

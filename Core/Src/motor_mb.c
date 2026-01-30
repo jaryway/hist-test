@@ -95,15 +95,24 @@ void motor_mb_homing(MotorMB_t *motor)
 {
 
     MB_Status_t res;
-    // 0.设置回零模式
-    // 1.设置回零查询速度
-    // 2.设置回零速度
-    // 3.设置回零加减速度
+    // 1.设置运动模式为 HOME 模式 P10-03 = 6
+    // 2.设置回零模式             P10-35 = 6
+    // 3.设置回零查询速度          P10-36
+    // 4.设置回零速度              P10-38
+    // 5.设置回零加减速度          P10-40
+    // 6.设置总线控制字为回零运动   P0D-08 =128
+
     uint8_t quantity = 7;
     uint16_t values[7];
     /**
      * 回零模式 6，以高速向负方向回零，遇到原点感应器信号时，低速回零，然后停止
      */
+
+    res = modbus_write_single_register(motor->slave_addr, REG_ADDR_RUN_MODE, 6, timeout_ms);
+    if (res != MB_OK) {
+        PRINT_DEBUG("Motor %d: Failed to set run mode\n", motor->slave_addr);
+        return;
+    }
 
     uint32_t home_search_speed = motor->speed / 2;
     uint32_t home_speed        = motor->speed / 3;
@@ -121,7 +130,7 @@ void motor_mb_homing(MotorMB_t *motor)
         return;
     }
 
-    // 2. 触发绝对定位运动（P0D-08 =128-回零运动）
+    // 设置总线控制字为回零运动P0D-08=128-回零运动）
     res = modbus_write_single_register(motor->slave_addr, REG_ADDR_BUS_CTRL_MODE, 128, timeout_ms);
     if (res != MB_OK) {
         PRINT_DEBUG("Motor %d: Failed to trigger home\n", motor->slave_addr);
@@ -146,26 +155,26 @@ void motor_mb_move_to(MotorMB_t *motor, int32_t abs_position)
     int32_to_regs_le(abs_position, regs);
     res = modbus_write_multiple_registers(motor->slave_addr, REG_ADDR_TARGET_POS, 2, regs, timeout_ms);
     if (res != MB_OK) {
-        printf("Motor %d: Failed to set target position\n", motor->slave_addr);
+        PRINT_DEBUG("Motor %d: Failed to set target position\n", motor->slave_addr);
         return;
     }
 
     // 2. 触发绝对定位运动（P0D-08 = 7）
     res = modbus_write_single_register(motor->slave_addr, REG_ADDR_BUS_CTRL_MODE, 0x0007, timeout_ms);
     if (res != MB_OK) {
-        printf("Motor %d: Failed to trigger absolute positioning\n", motor->slave_addr);
+        PRINT_DEBUG("Motor %d: Failed to trigger absolute positioning\n", motor->slave_addr);
         return;
     }
     // modbus_write_single_register(motor->slave_addr, REG_ADDR_BUS_CTRL_MODE, 0x0, timeout_ms);
     // 1. 设置目标位置（P10-14）,是 int32_t 类型，不能使用06功能码
     int32_to_regs_le(abs_position, regs);
     modbus_write_multiple_registers(motor->slave_addr, REG_ADDR_TARGET_POS, 2, regs, timeout_ms);
-    // printf("Motor %d: Move to %ld\n", motor->slave_addr, abs_position);
-    printf("write target pos \n");
+    // PRINT_DEBUG("Motor %d: Move to %ld\n", motor->slave_addr, abs_position);
+    PRINT_DEBUG("write target pos \n");
 
     // 2. 触发绝对定位运动（P0D-08 = 7）
     res = modbus_write_single_register(motor->slave_addr, REG_ADDR_BUS_CTRL_MODE, 0x0007, timeout_ms);
-    printf("write ctrl mode\n");
+    PRINT_DEBUG("write ctrl mode\n");
 
     if (res != MB_OK) {
         PRINT_DEBUG("Motor %d: Failed to set bus control mode,res=%d\n", motor->slave_addr, res);
@@ -197,7 +206,7 @@ void motor_mb_stop(MotorMB_t *motor)
     // 0. 重置总线控制字
     res = modbus_write_single_register(motor->slave_addr, REG_ADDR_BUS_CTRL_MODE, 256, timeout_ms);
     if (res != MB_OK) {
-        printf("Motor %d: Failed to stop\n", motor->slave_addr);
+        PRINT_DEBUG("Motor %d: Failed to stop\n", motor->slave_addr);
         return;
     }
 
@@ -210,7 +219,7 @@ void motor_mb_e_stop(MotorMB_t *motor)
     // 0. 重置总线控制字
     res = modbus_write_single_register(motor->slave_addr, REG_ADDR_BUS_CTRL_MODE, 512, timeout_ms);
     if (res != MB_OK) {
-        printf("Motor %d: Failed to stop\n", motor->slave_addr);
+        PRINT_DEBUG("Motor %d: Failed to stop\n", motor->slave_addr);
         return;
     }
 
@@ -227,7 +236,7 @@ void motor_mb_process(MotorMB_t *motor)
     uint8_t quantity = 1;
     MB_Status_t res;
 
-    printf("read bus state \n");
+    PRINT_DEBUG("read bus state \n");
     res = modbus_read_holding_registers(motor->slave_addr,
                                         REG_ADDR_BUS_STATE,
                                         quantity,
@@ -235,7 +244,7 @@ void motor_mb_process(MotorMB_t *motor)
                                         timeout_ms);
 
     if (res != MB_OK) { // 读取失败
-        printf("Motor %d: Failed to read state\n", motor->slave_addr);
+        PRINT_DEBUG("Motor %d: Failed to read state\n", motor->slave_addr);
         return;
     }
 
@@ -245,9 +254,11 @@ void motor_mb_process(MotorMB_t *motor)
     // Bit3：回零完成 1 << 3
 
     // 返回的数值，第一位是否为1
-    last_check_time = HAL_GetTick();
-    uint8_t bus_sta = (regs[0] & (1 << 0)) != 0;
-    if (bus_sta == 1) {
+    last_check_time  = HAL_GetTick();
+    uint8_t pos_sta  = (regs[0] & (1 << 0)) != 0; // 位置到达
+    uint8_t home_sta = (regs[0] & (1 << 3)) != 0; // 回零完成
+
+    if (pos_sta == 1 || home_sta == 1) {
         motor->motion_sta = 0;
         // 0.重置总线控制字
         modbus_write_single_register(motor->slave_addr, REG_ADDR_BUS_CTRL_MODE, 0x0, timeout_ms);

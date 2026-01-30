@@ -17,6 +17,7 @@
  */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
+#include "debug.h"
 #include "main.h"
 #include "dma.h"
 #include "tim.h"
@@ -73,7 +74,13 @@ static uint32_t half_count       = 0;
 static uint32_t finished_count   = 0;
 static uint8_t has_count_changed = 0;
 static uint32_t oc_it_count      = 0;
-static uint32_t last_time        = 0;
+// static uint32_t last_time        = 0;
+static int16_t rpm             = 0;
+static int16_t load_rate       = 0;
+static int32_t pos             = 0;
+static uint8_t pos_reached     = 0;
+static uint8_t homing_complete = 0;
+static uint8_t has_homed       = 0;
 
 DMA_DB_t dma_db_oc;
 
@@ -354,6 +361,341 @@ int _write(int file, char *ptr, int len)
     return len;
 }
 
+void monitor_task(void)
+{
+    MB_Status_t res;
+    // uint16_t value;
+    // uint16_t write_values[2];
+    uint16_t read_values[12];
+
+    // uint32_t micro_step = 10000;
+    /* 08.P0B-00 监控转速单位rpm ------------------------------------*/
+    res = modbus_read_holding_registers(1, REG_ADDR_RPM, 1, read_values, 100);
+    if (res != MB_OK) {
+        PRINT_DEBUG("read P0B-00 error,res:%d\n", res);
+    } else {
+        rpm = (int16_t)read_values[0];
+    }
+
+    /* 09.P0B-02 监控负载率百分比单位 --------------------------------*/
+    res = modbus_read_holding_registers(1, REG_ADDR_LOAD_RATE, 1, read_values, 100);
+    if (res != MB_OK) {
+        PRINT_DEBUG("read P0B-02 error,res:%d\n", res);
+    } else {
+        load_rate = (int16_t)read_values[0];
+    }
+
+    /* 10.P0B-07 监控反馈位置 -----------------------------------------*/
+    res = modbus_read_holding_registers(1, REG_ADDR_POS, 2, read_values, 100);
+    if (res != MB_OK) {
+        PRINT_DEBUG("read P0B-07 error,res:%d\n", res);
+    } else {
+        pos = regs_to_int32_le(read_values);
+    }
+
+    /* 11.P0B-04 监控状态字 -------------------------------------------*/
+    // Bit0：位置到达
+    // Bit1：速度到达
+    // Bit2：转矩到达
+    // Bit3：回零完成
+    res = modbus_read_holding_registers(1, REG_ADDR_BUS_STATE, 2, read_values, 100);
+    if (res != MB_OK) {
+        PRINT_DEBUG("read P0B-04 error,res:%d\n", res);
+        return;
+    }
+
+    uint8_t pos_sta  = (read_values[0] & (1 << 0)) != 0; // 位置到达
+    uint8_t home_sta = (read_values[0] & (1 << 3)) != 0; // 回零完成
+    homing_complete  = home_sta;
+    pos_reached      = pos_sta;
+
+    // PRINT_DEBUG("read P0B-04 success, value: %d (0x%04X)\r\n", read_values[0], read_values[0]);
+    // PRINT_DEBUG("  Position reached: %s\r\n", (read_values[0] & 0x01) ? "YES" : "NO");
+    // PRINT_DEBUG("  Speed reached: %s\r\n", (read_values[0] & 0x02) ? "YES" : "NO");
+    // PRINT_DEBUG("  Torque reached: %s\r\n", (read_values[0] & 0x04) ? "YES" : "NO");
+    // PRINT_DEBUG("  Homing complete: %s\r\n", (read_values[0] & 0x08) ? "YES" : "NO");
+}
+
+void homing(void)
+{
+    // 01.P02-00=9 控制模式为Modbus总线模式
+    // 02.P10-03=6 运行模式为Home模式
+    // 03.P10-35=19 回零模式为正向回原点
+    // 04.P10-36=20000 回零速度为20000Pr/s,即120r/min
+    // 05.P03-07=1 伺服上电使能
+    // 06.P0D-08=128 Home模式启动
+    // 07.P0D-08=256 停止
+    // 08.P0B-00 监控转速单位rpm
+    // 09.P0B-02 监控负载率百分比单位
+    // 10.P0B-07 监控反馈位置
+    // 11.P0B-04 监控状态字
+
+    PRINT_DEBUG("homing\n");
+    MB_Status_t res;
+    uint16_t value;
+    uint16_t write_values[2];
+    // uint16_t read_values[12];
+    uint32_t micro_step = 10000;
+
+    /* 02.P10-03=6 运行模式为Home模式 --------------------------------*/
+    value = 6;
+    res   = modbus_write_single_register(1, REG_ADDR_RUN_MODE, value, 100);
+    if (res != MB_OK) {
+        PRINT_DEBUG("write P10-03=%d error,res:%d\n", value, res);
+        return;
+    }
+    PRINT_DEBUG("write P10-03=%d success\n", value);
+
+    /* 03.P10-35=19 回零模式为正向回原点 ------------------------------*/
+    value = 19;
+    res   = modbus_write_single_register(1, REG_ADDR_HOME_MODE, value, 100);
+    if (res != MB_OK) {
+        PRINT_DEBUG("write P10-35=%d error,res:%d\n", value, res);
+        return;
+    }
+    PRINT_DEBUG("write P10-35=%d success\n", value);
+
+    /* 04.P10-36=20000 回零速度为20000Pr/s,即120r/min ---------------*/
+    uint32_t speed = 5 * micro_step;
+    uint32_to_regs_le(speed, write_values);
+    res = modbus_write_multiple_registers(1, REG_ADDR_HOME_SPEED, 2, write_values, 200);
+    if (res != MB_OK) {
+        PRINT_DEBUG("write P10-36=%lu error,res:%d\n", speed, res);
+        return;
+    }
+    PRINT_DEBUG("write P10-36=%lu success\n", speed);
+
+    /* 05.P03-07=1 伺服上电使能 --------------------------------------*/
+    value = 1;
+    res   = modbus_write_single_register(1, REG_ADDR_EN, value, 100);
+    if (res != MB_OK) {
+        PRINT_DEBUG("write P03-07=%d error,res:%d\n", value, res);
+        return;
+    }
+    PRINT_DEBUG("write P03-07=%d success\n", value);
+
+    /* 06.P0D-08=128 Home模式启动 -----------------------------------*/
+    value = 128;
+    res   = modbus_write_single_register(1, REG_ADDR_BUS_CTRL_MODE, value, 100);
+    if (res != MB_OK) {
+        PRINT_DEBUG("write P0D-08=%d error,res:%d\n", value, res);
+        return;
+    }
+    PRINT_DEBUG("write P0D-08=%d success\n", value);
+
+    // /* 07.P0D-08=256 停止 -------------------------------------------*/
+    // HAL_Delay(5000);
+    // value = 256;
+    // res   = modbus_write_single_register(1, REG_ADDR_BUS_CTRL_MODE, value, 100);
+    // if (res != MB_OK) {
+    //     PRINT_DEBUG("write P0D-08=%d error,res:%d\n", value, res);
+    //     return;
+    // }
+    // PRINT_DEBUG("write P0D-08=%d success\n", value);
+
+    // /* 08.P0B-00 监控转速单位rpm ------------------------------------*/
+    // res = modbus_read_holding_registers(1, REG_ADDR_RPM, 1, read_values, 100);
+    // if (res != MB_OK) {
+    //     PRINT_DEBUG("read P0B-00 error,res:%d\n", res);
+    //     return;
+    // }
+    // PRINT_DEBUG("read P0B-00 success,value=%d\n", (int16_t)read_values[0]);
+
+    // /* 09.P0B-02 监控负载率百分比单位 --------------------------------*/
+    // res = modbus_read_holding_registers(1, REG_ADDR_LOAD_RATE, 1, read_values, 100);
+    // if (res != MB_OK) {
+    //     PRINT_DEBUG("read P0B-02 error,res:%d\n", res);
+    //     return;
+    // }
+    // PRINT_DEBUG("read POB-02 success,value=%d\n", (int16_t)read_values[0]);
+
+    // /* 10.P0B-07 监控反馈位置 -----------------------------------------*/
+    // res = modbus_read_holding_registers(1, REG_ADDR_POS, 2, read_values, 100);
+    // if (res != MB_OK) {
+    //     PRINT_DEBUG("read P0B-07 error,res:%d\n", res);
+    //     return;
+    // }
+    // PRINT_DEBUG("read P0B-07 success,value=%lu\n", regs_to_uint32_le(read_values));
+
+    // /* 11.P0B-04 监控状态字 -------------------------------------------*/
+    // // Bit0：位置到达
+    // // Bit1：速度到达
+    // // Bit2：转矩到达
+    // // Bit3：回零完成
+    // res = modbus_read_holding_registers(1, REG_ADDR_BUS_STATE, 2, read_values, 100);
+    // if (res != MB_OK) {
+    //     PRINT_DEBUG("read P0B-04 error,res:%d\n", res);
+    //     return;
+    // }
+
+    // PRINT_DEBUG("read P0B-04 success, value: %d (0x%04X)\r\n", read_values[0], read_values[0]);
+    // PRINT_DEBUG("  Position reached: %s\r\n", (read_values[0] & 0x01) ? "YES" : "NO");
+    // PRINT_DEBUG("  Speed reached: %s\r\n", (read_values[0] & 0x02) ? "YES" : "NO");
+    // PRINT_DEBUG("  Torque reached: %s\r\n", (read_values[0] & 0x04) ? "YES" : "NO");
+    // PRINT_DEBUG("  Homing complete: %s\r\n", (read_values[0] & 0x08) ? "YES" : "NO");
+}
+
+// 正转5圈
+void run_5_circle(void)
+{
+    // 01.P02-00=9  控制模式为Modbus总线模式 x
+    // 02.P0D-17=1 强制DI使能  x
+    // 03.P10-03=1 运行模式为PP模式
+    // 04.P10-27=50000 设置加速度
+    // 05.P10-27=50000 设置减速度
+    // 06.P10-14=50000 设置目标位置
+    // 07.P10-25=10000 设置速度
+    // 08.P0D-18=507 使能   x
+    // 09.P0D-08=1 相对定位启动
+    // 10.P0D-08=0 复位
+    // 11.POB-O0 监控转速单位rpm
+    // 12.POB-02 监控负载率百分比单位
+    // 13.POB-07 监控反馈位置
+    // 14.P0B-04 监控状态字
+
+    PRINT_DEBUG("run_5_circle\n");
+    pos_reached = 0;
+
+    MB_Status_t res;
+    uint16_t value;
+    uint32_t val32;
+    uint16_t write_values[2];
+    // uint16_t read_values[12];
+    uint32_t micro_step = 10000;
+
+    /* 01.P02-00=9  控制模式为Modbus总线模式 x */
+    // res = modbus_write_single_register(1, REG_ADDR_CTRL_MODE, 9, 100);
+    // if (res != MB_OK) {
+    //     PRINT_DEBUG("REG_ADDR_CTRL_MODE error,res:%d\n", res);
+    //     return;
+    // }
+
+    /* 02.P0D-17=1 强制DI使能 x */
+    // res = modbus_write_single_register(1, REG_ADDR_FORCE_IO, 1, 100);
+    // if (res != MB_OK) {
+    //     PRINT_DEBUG("write P0D-17=1 error,res:%d\n", res);
+    //     return;
+    // }
+    // PRINT_DEBUG("write P0D-17=1 success\n");
+
+    /* 03.P10-03=1 运行模式为PP模式 --------------------------------*/
+    value = 1;
+    res   = modbus_write_single_register(1, REG_ADDR_RUN_MODE, value, 100);
+    if (res != MB_OK) {
+        PRINT_DEBUG("write P10-03=%d error,res:%d\n", value, res);
+        return;
+    }
+    PRINT_DEBUG("write P10-03=%d success\n", value);
+
+    /* 04.P10-27=50000 设置加速度 -----------------------------*/
+    val32 = 5 * micro_step;
+    uint32_to_regs_le(val32, write_values);
+    res = modbus_write_multiple_registers(1, REG_ADDR_ACCEL, 2, write_values, 200);
+    if (res != MB_OK) {
+        PRINT_DEBUG("write P10-27=%lu error,res:%d\n", val32, res);
+        return;
+    }
+    PRINT_DEBUG("write P10-27=%lu success\n", val32);
+
+    /* 05.P10-29=50000 设置减速度 -----------------------------*/
+    val32 = 5 * micro_step;
+    uint32_to_regs_le(val32, write_values);
+    res = modbus_write_multiple_registers(1, REG_ADDR_DECEL, 2, write_values, 200);
+    if (res != MB_OK) {
+        PRINT_DEBUG("write P10-29=%lu error,res:%d\n", val32, res);
+        return;
+    }
+    PRINT_DEBUG("write P10-29=%lu success\n", val32);
+
+    /* 06.P10-14=x 设置目标位置 ------------------------------------- */
+    val32 = 300 * micro_step;
+    uint32_to_regs_le(val32, write_values);
+    res = modbus_write_multiple_registers(1, REG_ADDR_TARGET_POS, 2, write_values, 200);
+    if (res != MB_OK) {
+        PRINT_DEBUG("write P10-14=%lu error,res:%d\n", val32, res);
+        return;
+    }
+    PRINT_DEBUG("write P10-14=%lu success\n", val32);
+
+    /* 07.P10-25=1 设置速度 --------------------------------------- */
+    uint32_t rps = 3000 * micro_step;
+    uint32_to_regs_le(rps, write_values); // 3000RPM
+    res = modbus_write_multiple_registers(1, REG_ADDR_SPEED, 2, write_values, 200);
+    if (res != MB_OK) {
+        PRINT_DEBUG("write P10-25=%lu error,res:%d\n", rps, res);
+        return;
+    }
+    PRINT_DEBUG("write P10-25=%lu success\n", rps);
+
+    // /* 08.P0D-18=507 使能 */
+    // value = 507;
+    // res   = modbus_write_single_register(1, REG_ADDR_FORCE_INPUT, value, 100);
+    // if (res != MB_OK) {
+    //     PRINT_DEBUG("write P0D-18=%d error,res:%d\n", value, res);
+    //     return;
+    // }
+    // PRINT_DEBUG("write P0D-18=%d success\n", value);
+
+    /* 09.P0D-08=1 相对定位启动 --------------------------------------------- */
+    value = 1;
+    res   = modbus_write_single_register(1, REG_ADDR_BUS_CTRL_MODE, value, 100);
+    if (res != MB_OK) {
+        PRINT_DEBUG("write P0D-08=%d error,res:%d\n", value, res);
+        return;
+    }
+    PRINT_DEBUG("write P0D-08=%d success\n", value);
+    /* 10.P0D-08=0 复位 --------------------------------------------- */
+    value = 0;
+    res   = modbus_write_single_register(1, REG_ADDR_BUS_CTRL_MODE, value, 100);
+    if (res != MB_OK) {
+        PRINT_DEBUG("write P0D-08=%d error,res:%d\n", value, res);
+        return;
+    }
+    PRINT_DEBUG("write P0D-08=%d success\n", value);
+
+    // /* 11.P0B-00 监控转速单位rpm ------------------------------------*/
+    // res = modbus_read_holding_registers(1, REG_ADDR_RPM, 1, read_values, 100);
+    // if (res != MB_OK) {
+    //     PRINT_DEBUG("read P0B-00 error,res:%d\n", res);
+    //     return;
+    // }
+    // PRINT_DEBUG("read POB-02 success, value=%d\n", (int16_t)read_values[0]);
+
+    // /* 12.P0B-02 监控负载率百分比单位 --------------------------------*/
+    // res = modbus_read_holding_registers(1, REG_ADDR_LOAD_RATE, 1, read_values, 100);
+    // if (res != MB_OK) {
+    //     PRINT_DEBUG("read P0B-02 error,res:%d\n", res);
+    //     return;
+    // }
+    // PRINT_DEBUG("read POB-02 success,value=%d\n", (int16_t)read_values[0]);
+
+    // /* 13.P0B-07 监控反馈位置 -----------------------------------------*/
+    // res = modbus_read_holding_registers(1, REG_ADDR_POS, 2, read_values, 100);
+    // if (res != MB_OK) {
+    //     PRINT_DEBUG("read P0B-07 error,res:%d\n", res);
+    //     return;
+    // }
+    // PRINT_DEBUG("read POB-07 success,value=%lu\n", regs_to_uint32_le(read_values));
+
+    // /* 14.P0B-04 监控状态字 -------------------------------------------*/
+    // // Bit0：位置到达
+    // // Bit1：速度到达
+    // // Bit2：转矩到达
+    // // Bit3：回零完成
+    // res = modbus_read_holding_registers(1, REG_ADDR_BUS_STATE, 2, read_values, 100);
+    // if (res != MB_OK) {
+    //     PRINT_DEBUG("read P0B-04 error,res:%d\n", res);
+    //     return;
+    // }
+    // PRINT_DEBUG("read P0B-04 success\n");
+
+    // printf("read P0B-04 success,value: %d (0x%04X)\r\n", read_values[0], read_values[0]);
+    // printf("  Position reached: %s\r\n", (read_values[0] & 0x01) ? "YES" : "NO");
+    // printf("  Speed reached: %s\r\n", (read_values[0] & 0x02) ? "YES" : "NO");
+    // printf("  Torque reached: %s\r\n", (read_values[0] & 0x04) ? "YES" : "NO");
+    // printf("  Homing complete: %s\r\n", (read_values[0] & 0x08) ? "YES" : "NO");
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -395,6 +737,7 @@ int main(void)
     /* USER CODE BEGIN 2 */
 
     printf("System start\r\n");
+    HAL_Delay(1000);
 
     //     Profile_t profiles[] = {motor42_profile, servo_profile};
 
@@ -429,23 +772,29 @@ int main(void)
     // #endif
 
     modbus_init(&MODBUS_HUART, RS485_RE_GPIO_Port, RS485_RE_Pin);
-    motor_mb_init(&motor_mb, 0x01);
-    motor_mb_set_speed(&motor_mb, SPEED);
-    motor_mb_set_accel(&motor_mb, ACCEL);
-    motor_mb_set_decel(&motor_mb, DECEL);
-    // motor_mb_move_to(&motor_mb, TOTAL_STEPS);
-    motor_mb_homing(&motor_mb);
+
+    homing();
+    // HAL_Delay(1000 * 10);
+    // run_5_circle();
+
+    // run_5_circle();
+    // motor_mb_init(&motor_mb, 0x01);
+    // motor_mb_set_speed(&motor_mb, SPEED);
+    // motor_mb_set_accel(&motor_mb, ACCEL);
+    // motor_mb_set_decel(&motor_mb, DECEL);
+    // // motor_mb_move_to(&motor_mb, TOTAL_STEPS);
+    // motor_mb_homing(&motor_mb);
     // HAL_Delay(1000);
     // motor_mb_stop(&motor_mb);
     // motor_mb_move_to(&motor_mb, 0);
     // HAL_Delay(1000);
     // motor_mb_stop(&motor_mb);
 
-    uint16_t quantity = 2;
-    uint16_t read_buffer[2];
-    uint16_t write_values[2];
-    MB_Status_t status;
-    status = modbus_read_holding_registers(0x01, REG_ADDR_POS, quantity, read_buffer, 1000);
+    // uint16_t quantity = 2;
+    // uint16_t read_buffer[2];
+    // uint16_t write_values[2];
+    // MB_Status_t status;
+    // status = modbus_read_holding_registers(0x01, REG_ADDR_POS, quantity, read_buffer, 1000);
 
     // status = modbus_write_single_register(0x01, 0x1, 666, 1000);
     // printf("status=%d\r\n", status);
@@ -456,20 +805,20 @@ int main(void)
     // status = modbus_write_multiple_registers(0x01, REG_ADDR_SPEED, quantity, write_values, 1000);
     // printf("write multiple registers status=%d\r\n", status);
 
-    if (status == MB_OK) {
-        printf("Modbus read successful!\r\n");
-        printf("Read %d registers from slave 0x%02X:\r\n", quantity, 0x01);
+    // if (status == MB_OK) {
+    //     printf("Modbus read successful!\r\n");
+    //     printf("Read %d registers from slave 0x%02X:\r\n", quantity, 0x01);
 
-        // 打印读取到的数据
-        for (int i = 0; i < quantity; i++) {
-            printf("Register[0x%04X] = 0x%04X (%d)\r\n",
-                   0x0000 + i, read_buffer[i], read_buffer[i]);
-        }
-        // int32_t read_value = regs_to_int32_le(read_buffer);
-        // printf("Read value: %ld\r\n", read_value);
-    } else {
-        printf("Modbus read failed with status: %d\r\n", status);
-    }
+    //     // 打印读取到的数据
+    //     for (int i = 0; i < quantity; i++) {
+    //         printf("Register[0x%04X] = 0x%04X (%d)\r\n",
+    //                0x0000 + i, read_buffer[i], read_buffer[i]);
+    //     }
+    //     // int32_t read_value = regs_to_int32_le(read_buffer);
+    //     // printf("Read value: %ld\r\n", read_value);
+    // } else {
+    //     printf("Modbus read failed with status: %d\r\n", status);
+    // }
 
     // modbus_write_06(0x01, 0x0000, 0x0001);
 
@@ -487,19 +836,28 @@ int main(void)
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
-    uint8_t d = 0;
+    // uint8_t d = 0;
     while (1) {
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
-        motor_mb_process(&motor_mb);
-        if (motor_mb_is_stopped(&motor_mb)) {
-            // printf("Motor stopped\r\n");
-            // HAL_Delay(1000);
-            // motor_mb_move(&motor_mb, d == 0 ? -TOTAL_STEPS : TOTAL_STEPS);
-            // HAL_Delay(1000);
-            d = !d;
+        monitor_task();
+        if (homing_complete && !has_homed) {
+            homing_complete = 0;
+            has_homed       = 1;
+            run_5_circle();
         }
+        if (pos_reached && has_homed) {
+            PRINT_DEBUG("Position reached\r\n");
+        }
+        // motor_mb_process(&motor_mb);
+        // if (motor_mb_is_stopped(&motor_mb)) {
+        //     // printf("Motor stopped\r\n");
+        //     // HAL_Delay(1000);
+        //     // motor_mb_move(&motor_mb, d == 0 ? -TOTAL_STEPS : TOTAL_STEPS);
+        //     // HAL_Delay(1000);
+        //     d = !d;
+        // }
     }
     /* USER CODE END 3 */
 }
