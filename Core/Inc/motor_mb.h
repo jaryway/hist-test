@@ -54,7 +54,14 @@ typedef struct
     // __IO int32_t rest;              /* 记录new_step_delay中的余数，提高下一步计算的精度 */
 
     // int32_t pulses; /* 带方向的目标移动总步数 */
-    __IO uint8_t motion_sta; /* 是否在运动？0：停止，1：运动 */
+    __IO uint8_t motion_sta;   /* 是否在运动？0：停止，1：运动 */
+    __IO uint8_t m_rpm;        /* 监控转速单位rpm */
+    __IO uint8_t m_load_rate;  /* 监控负载率百分比单位 */
+    __IO uint8_t m_pos;        /* 监控反馈位置 */
+    __IO uint8_t m_pos_sta;    /* 监控位置到达 */
+    __IO uint8_t m_homing_sta; /* 监控回零完成 */
+    __IO uint8_t m_phase_cur;  /* 监控相电流 */
+
     // __IO uint8_t run_mode;   /* 0 = 运动 1 = 回零 */
     uint8_t reversed_dir; // 是否需要反转方向
 
@@ -72,7 +79,7 @@ void motor_mb_set_reversed_dir(MotorMB_t *motor);
 void motor_mb_set_speed(MotorMB_t *motor, uint32_t speed);
 void motor_mb_set_accel(MotorMB_t *motor, uint32_t accel);
 void motor_mb_set_decel(MotorMB_t *motor, uint32_t decel);
-int32_t motor_mb_get_current_position(MotorMB_t *motor);
+int32_t motor_mb_get_current_pos(MotorMB_t *motor, MB_Status_t *res);
 void motor_mb_homing(MotorMB_t *motor);
 void motor_mb_move_to(MotorMB_t *motor, int32_t abs_position);
 void motor_mb_move(MotorMB_t *motor, int32_t rel_position);

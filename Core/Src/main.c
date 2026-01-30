@@ -447,7 +447,7 @@ void homing(void)
     PRINT_DEBUG("write P10-03=%d success\n", value);
 
     /* 03.P10-35=19 回零模式为正向回原点 ------------------------------*/
-    value = 19;
+    value = 6;
     res   = modbus_write_single_register(1, REG_ADDR_HOME_MODE, value, 100);
     if (res != MB_OK) {
         PRINT_DEBUG("write P10-35=%d error,res:%d\n", value, res);
