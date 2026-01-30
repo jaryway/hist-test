@@ -3,6 +3,7 @@
 
 #include "stm32f1xx_hal.h"
 #include "stm32f1xx.h"
+#include "bsp_modbus_master.h"
 
 #define REG_ADDR_CTRL_MODE         0x0200 // P02-00 控制模式
 #define REG_ADDR_DIR               0x0202 // P02-02 旋转方向，1=正转，0=反转
@@ -25,7 +26,7 @@
 #define REG_ADDR_HOME_DECEL        0x1028 // P10-40 回零加减速度
 #define REG_ADDR_FORCE_IO          0x0D11 // P0D-17 DIDO 强制输入输出使能
 #define REG_ADDR_FORCE_INPUT       0x0D12 // P0D-18 DI 强制输入给定
-#define REG_ADDR_MICRO_STEP        0x0502 // P05-02 电机细分
+#define REG_ADDR_MICRO_STEP        0x0509 // P05-09 电机细分
 
 #define SPR                        800                   /* 旋转一圈需要的脉冲数 */
 #define RPM                        3000                  // 电机最高转速
@@ -55,12 +56,14 @@ typedef struct
 
     // int32_t pulses; /* 带方向的目标移动总步数 */
     __IO uint8_t motion_sta;   /* 是否在运动？0：停止，1：运动 */
-    __IO uint8_t m_rpm;        /* 监控转速单位rpm */
-    __IO uint8_t m_load_rate;  /* 监控负载率百分比单位 */
-    __IO uint8_t m_pos;        /* 监控反馈位置 */
+    __IO int16_t m_rpm;       /* 监控转速单位rpm */
+    __IO uint16_t m_load_rate; /* 监控负载率百分比单位 */
+    __IO int32_t m_pos;        /* 监控反馈位置 */
     __IO uint8_t m_pos_sta;    /* 监控位置到达 */
     __IO uint8_t m_homing_sta; /* 监控回零完成 */
-    __IO uint8_t m_phase_cur;  /* 监控相电流 */
+    __IO float m_phase_cur;  /* 监控相电流 */
+
+    __IO uint8_t has_homed;
 
     // __IO uint8_t run_mode;   /* 0 = 运动 1 = 回零 */
     uint8_t reversed_dir; // 是否需要反转方向
@@ -93,4 +96,5 @@ void motor_mb_process(MotorMB_t *motor);
 float motor_mb_get_phase_current(MotorMB_t *motor);
 /* 读取电机运行状态 */
 uint8_t motor_mb_is_stopped(MotorMB_t *motor);
+uint8_t motor_mb_is_homed(MotorMB_t *motor);
 #endif /* __MOTOR_MB_H */

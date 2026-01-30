@@ -561,7 +561,7 @@ void run_5_circle(void)
     uint32_t val32;
     uint16_t write_values[2];
     // uint16_t read_values[12];
-    uint32_t micro_step = 10000;
+    uint32_t micro_step = 800;
 
     /* 01.P02-00=9  控制模式为Modbus总线模式 x */
     // res = modbus_write_single_register(1, REG_ADDR_CTRL_MODE, 9, 100);
@@ -608,7 +608,7 @@ void run_5_circle(void)
     PRINT_DEBUG("write P10-29=%lu success\n", val32);
 
     /* 06.P10-14=x 设置目标位置 ------------------------------------- */
-    val32 = 300 * micro_step;
+    val32 = 3000 * micro_step;
     uint32_to_regs_le(val32, write_values);
     res = modbus_write_multiple_registers(1, REG_ADDR_TARGET_POS, 2, write_values, 200);
     if (res != MB_OK) {
@@ -618,7 +618,7 @@ void run_5_circle(void)
     PRINT_DEBUG("write P10-14=%lu success\n", val32);
 
     /* 07.P10-25=1 设置速度 --------------------------------------- */
-    uint32_t rps = 3000 * micro_step;
+    uint32_t rps = 3000 / 60.0f * micro_step;
     uint32_to_regs_le(rps, write_values); // 3000RPM
     res = modbus_write_multiple_registers(1, REG_ADDR_SPEED, 2, write_values, 200);
     if (res != MB_OK) {
@@ -773,17 +773,16 @@ int main(void)
 
     modbus_init(&MODBUS_HUART, RS485_RE_GPIO_Port, RS485_RE_Pin);
 
-    homing();
+    // homing();
     // HAL_Delay(1000 * 10);
     // run_5_circle();
 
-    // run_5_circle();
-    // motor_mb_init(&motor_mb, 0x01);
-    // motor_mb_set_speed(&motor_mb, SPEED);
-    // motor_mb_set_accel(&motor_mb, ACCEL);
-    // motor_mb_set_decel(&motor_mb, DECEL);
-    // // motor_mb_move_to(&motor_mb, TOTAL_STEPS);
+    motor_mb_init(&motor_mb, 0x01);
+    motor_mb_set_speed(&motor_mb, SPEED);
+    motor_mb_set_accel(&motor_mb, ACCEL);
+    motor_mb_set_decel(&motor_mb, DECEL);
     // motor_mb_homing(&motor_mb);
+    motor_mb_move(&motor_mb, 800000);
     // HAL_Delay(1000);
     // motor_mb_stop(&motor_mb);
     // motor_mb_move_to(&motor_mb, 0);
@@ -836,20 +835,25 @@ int main(void)
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
-    // uint8_t d = 0;
+    uint8_t d = 0;
     while (1) {
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
-        monitor_task();
-        if (homing_complete && !has_homed) {
-            homing_complete = 0;
-            has_homed       = 1;
-            run_5_circle();
-        }
-        if (pos_reached && has_homed) {
-            PRINT_DEBUG("Position reached\r\n");
-        }
+        // monitor_task();
+        motor_mb_process(&motor_mb);
+        // if (motor_mb_is_stopped(&motor_mb)) {
+        //     motor_mb_move(&motor_mb, d == 0 ? -TOTAL_STEPS : TOTAL_STEPS);
+        //     d = !d;
+        // }
+        // if (homing_complete && !has_homed) {
+        //     homing_complete = 0;
+        //     has_homed       = 1;
+        //     run_5_circle();
+        // }
+        // if (pos_reached && has_homed) {
+        //     PRINT_DEBUG("Position reached\r\n");
+        // }
         // motor_mb_process(&motor_mb);
         // if (motor_mb_is_stopped(&motor_mb)) {
         //     // printf("Motor stopped\r\n");
