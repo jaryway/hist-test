@@ -5,19 +5,17 @@
 #include "stm32f1xx_hal.h"
 
 // ========== 配置参数 ==========
-#define MAX_DMA_BUFFER_SIZE 256 // DMA缓冲区元素个数（u16）
+#define MAX_DMA_BUFFER_SIZE 1024U // DMA缓冲区元素个数（u16）
 
 // ========== 数据结构 ==========
 
-typedef enum DMA_DB_Mode_t {
-    PWM_ARR = 0,
-    OC_CCR  = 1,
-} DMA_DB_Mode_t;
+// typedef enum DMA_DB_Mode_t {
+//     PWM_ARR = 0,
+//     OC_CCR  = 1,
+// } DMA_DB_Mode_t;
 
 typedef struct
 {
-    DMA_DB_Mode_t mode; // 模式 0 = pwm+arr, 1 = oc+ccr
-
     TIM_HandleTypeDef *htim;
     uint32_t tim_channel; // 定时器通道
     // DMA缓冲区
@@ -26,7 +24,6 @@ typedef struct
     uint16_t dma_buffer[MAX_DMA_BUFFER_SIZE] __attribute__((aligned(32))); // DMA缓冲区
     uint32_t total_data;                                                   // 总数据长度
     volatile uint32_t transfered_data;                                     // 已传输数据长度
-    uint16_t g_last_accum;                                                 // 上一次累加值
 
     volatile uint8_t active_buffer;    // 当前活动缓冲区（0或1）
     volatile uint8_t next_fill_buffer; // 下一次要填充的缓冲区(0填充前半区，1填充后半区，255表示已填充)
@@ -50,8 +47,5 @@ void dma_db_fill_in_background(DMA_DB_t *dma_db);
 
 void dma_db_half_transfer_it_cb_handle(DMA_DB_t *dma_db);
 void dma_db_transfer_complete_it_cb_handle(DMA_DB_t *dma_db);
-
-uint32_t dma_db_get_sent_elements(const DMA_DB_t *db);
-uint32_t dma_db_get_remaining_elements(const DMA_DB_t *db);
 
 #endif /* __DMA_DB_H */

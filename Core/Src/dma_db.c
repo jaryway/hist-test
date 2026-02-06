@@ -70,20 +70,20 @@ static void _dma_db_fill_half(DMA_DB_t *dma_db, uint8_t which_half)
     uint16_t *dst = (which_half == 0) ? &dma_buffer[0] : &dma_buffer[half_size];
 
     for (uint16_t i = 0; i < half_size; i++) {
-        if (dma_db->mode == PWM_ARR) {
-            // TODO: dst[i] = ...
-        } else { // OC_CCR
-            int32_t step_delay = 1000;
-            if (dma_db->on_fill_buffer) {
-                step_delay = dma_db->on_fill_buffer(dma_db->callback_context);
-            }
-            if (step_delay < 0) step_delay = 0;
-            if (step_delay > 0xFFFF) step_delay = 0xFFFF;
+        // if (dma_db->mode == PWM_ARR) {
+        //     // TODO: dst[i] = ...
+        // } else { // OC_CCR
+        //     int32_t step_delay = 1000;
+        //     if (dma_db->on_fill_buffer) {
+        //         step_delay = dma_db->on_fill_buffer(dma_db->callback_context);
+        //     }
+        //     if (step_delay < 0) step_delay = 0;
+        //     if (step_delay > 0xFFFF) step_delay = 0xFFFF;
 
-            // dma_db->g_last_accum = (uint16_t)(dma_db->g_last_accum + (uint16_t)step_delay);
-            dma_db->g_last_accum += (uint16_t)step_delay;
-            dst[i] = dma_db->g_last_accum;
-        }
+        //     // dma_db->g_last_accum = (uint16_t)(dma_db->g_last_accum + (uint16_t)step_delay);
+        //     dma_db->g_last_accum += (uint16_t)step_delay;
+        //     dst[i] = dma_db->g_last_accum;
+        // }
     }
 
     if (which_half == 0) {
@@ -115,8 +115,8 @@ static void _dma_db_switch_buffer(DMA_DB_t *dma_db)
 void dma_db_start(DMA_DB_t *dma_db)
 {
     uint16_t cnt         = __HAL_TIM_GET_COUNTER(dma_db->htim);
-    dma_db->g_last_accum = cnt + 100; // 100 tick guard
-    __HAL_TIM_SET_COMPARE(dma_db->htim, dma_db->tim_channel, dma_db->g_last_accum);
+    // dma_db->g_last_accum = cnt + 100; // 100 tick guard
+    // __HAL_TIM_SET_COMPARE(dma_db->htim, dma_db->tim_channel, dma_db->g_last_accum);
 
     dma_db->dma_buffer_0_filled = 0;
     dma_db->dma_buffer_1_filled = 0;
@@ -149,21 +149,21 @@ void dma_db_start(DMA_DB_t *dma_db)
     printf("buffer_size: %u\r\n", dma_db->buffer_size);
     printf("total_data: %lu\r\n", dma_db->total_data);
 
-    if (dma_db->mode == PWM_ARR) {
-        HAL_TIM_PWM_Start_DMA(dma_db->htim, dma_db->tim_channel, (uint32_t *)dma_db->dma_buffer, dma_db->buffer_size);
-    } else if (dma_db->mode == OC_CCR) {
-        start_time = HAL_GetTick();
-        HAL_TIM_OC_Start_DMA(dma_db->htim, dma_db->tim_channel, (uint32_t *)dma_db->dma_buffer, dma_db->buffer_size);
-    }
+    // if (dma_db->mode == PWM_ARR) {
+    //     HAL_TIM_PWM_Start_DMA(dma_db->htim, dma_db->tim_channel, (uint32_t *)dma_db->dma_buffer, dma_db->buffer_size);
+    // } else if (dma_db->mode == OC_CCR) {
+    //     start_time = HAL_GetTick();
+    //     HAL_TIM_OC_Start_DMA(dma_db->htim, dma_db->tim_channel, (uint32_t *)dma_db->dma_buffer, dma_db->buffer_size);
+    // }
 }
 
 void dma_db_stop(DMA_DB_t *dma_db)
 {
-    if (dma_db->mode == PWM_ARR) {
-        HAL_TIM_PWM_Stop_DMA(dma_db->htim, dma_db->tim_channel);
-    } else if (dma_db->mode == OC_CCR) {
-        HAL_TIM_OC_Stop_DMA(dma_db->htim, dma_db->tim_channel);
-    }
+    // if (dma_db->mode == PWM_ARR) {
+    //     HAL_TIM_PWM_Stop_DMA(dma_db->htim, dma_db->tim_channel);
+    // } else if (dma_db->mode == OC_CCR) {
+    //     HAL_TIM_OC_Stop_DMA(dma_db->htim, dma_db->tim_channel);
+    // }
     dma_db->transfering = 0;
 }
 
@@ -209,12 +209,12 @@ void dma_db_transfer_complete_it_cb_handle(DMA_DB_t *dma_db)
     if (temp >= dma_db->total_data) {
         dma_db->transfered_data = dma_db->total_data; // 重新修正发送位置
 
-        if (dma_db->mode == PWM_ARR) {
-            HAL_TIM_PWM_Stop(dma_db->htim, dma_db->tim_channel);
-            HAL_TIM_Base_Stop_DMA(dma_db->htim);
-        } else if (dma_db->mode == OC_CCR) {
-            HAL_TIM_OC_Stop_DMA(dma_db->htim, dma_db->tim_channel);
-        }
+        // if (dma_db->mode == PWM_ARR) {
+        //     HAL_TIM_PWM_Stop(dma_db->htim, dma_db->tim_channel);
+        //     HAL_TIM_Base_Stop_DMA(dma_db->htim);
+        // } else if (dma_db->mode == OC_CCR) {
+        //     HAL_TIM_OC_Stop_DMA(dma_db->htim, dma_db->tim_channel);
+        // }
 
         if (dma_db->transfer_complete_callback != NULL) {
             dma_db->transfer_complete_callback(dma_db->callback_context);
