@@ -57,44 +57,42 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define BTN_LED_ST_Pin GPIO_PIN_13
-#define BTN_LED_ST_GPIO_Port GPIOC
-#define BTN_LED_DN_Pin GPIO_PIN_14
-#define BTN_LED_DN_GPIO_Port GPIOC
-#define BTN_LED_UP_Pin GPIO_PIN_15
-#define BTN_LED_UP_GPIO_Port GPIOC
-#define BTN_SP_Pin GPIO_PIN_0
-#define BTN_SP_GPIO_Port GPIOA
-#define SENSOR_LD2_Pin GPIO_PIN_1
-#define SENSOR_LD2_GPIO_Port GPIOA
-#define SENSOR_LD1_Pin GPIO_PIN_4
-#define SENSOR_LD1_GPIO_Port GPIOA
+#define SENSOE_LD2_Pin GPIO_PIN_13
+#define SENSOE_LD2_GPIO_Port GPIOC
+#define SENSOR_LD1_Pin GPIO_PIN_14
+#define SENSOR_LD1_GPIO_Port GPIOC
+#define ENA_Pin GPIO_PIN_15
+#define ENA_GPIO_Port GPIOC
+#define PUL_Pin GPIO_PIN_0
+#define PUL_GPIO_Port GPIOA
+#define PUL1_Pin GPIO_PIN_1
+#define PUL1_GPIO_Port GPIOA
+#define DIR_Pin GPIO_PIN_4
+#define DIR_GPIO_Port GPIOA
 #define SENSOR_DN_Pin GPIO_PIN_5
 #define SENSOR_DN_GPIO_Port GPIOA
-#define SENSOR_UP_Pin GPIO_PIN_6
-#define SENSOR_UP_GPIO_Port GPIOA
-#define BTN_ST_Pin GPIO_PIN_7
-#define BTN_ST_GPIO_Port GPIOA
-#define BTN_DN_Pin GPIO_PIN_0
-#define BTN_DN_GPIO_Port GPIOB
-#define BTN_UP_Pin GPIO_PIN_1
+#define ENAB_Pin GPIO_PIN_7
+#define ENAB_GPIO_Port GPIOA
+#define DIRE_Pin GPIO_PIN_0
+#define DIRE_GPIO_Port GPIOB
+#define STEP_Pin GPIO_PIN_1
+#define STEP_GPIO_Port GPIOB
+#define BTN_UP_Pin GPIO_PIN_12
 #define BTN_UP_GPIO_Port GPIOB
+#define BTN_DN_Pin GPIO_PIN_13
+#define BTN_DN_GPIO_Port GPIOB
+#define BTN_ST_Pin GPIO_PIN_14
+#define BTN_ST_GPIO_Port GPIOB
+#define BTN_LED_UP_Pin GPIO_PIN_15
+#define BTN_LED_UP_GPIO_Port GPIOB
+#define BTN_LED_DN_Pin GPIO_PIN_8
+#define BTN_LED_DN_GPIO_Port GPIOA
 #define RS485_RE_Pin GPIO_PIN_11
 #define RS485_RE_GPIO_Port GPIOA
-#define ENAB_Pin GPIO_PIN_3
-#define ENAB_GPIO_Port GPIOB
-#define DIRE_Pin GPIO_PIN_4
-#define DIRE_GPIO_Port GPIOB
-#define STEP_Pin GPIO_PIN_5
-#define STEP_GPIO_Port GPIOB
-#define PUL1_Pin GPIO_PIN_6
-#define PUL1_GPIO_Port GPIOB
-#define ENA_Pin GPIO_PIN_7
-#define ENA_GPIO_Port GPIOB
-#define PUL_Pin GPIO_PIN_8
-#define PUL_GPIO_Port GPIOB
-#define DIR_Pin GPIO_PIN_9
-#define DIR_GPIO_Port GPIOB
+#define BTN_LED_ST_Pin GPIO_PIN_12
+#define BTN_LED_ST_GPIO_Port GPIOA
+#define BTN_SP_Pin GPIO_PIN_9
+#define BTN_SP_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
