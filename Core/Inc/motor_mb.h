@@ -15,7 +15,7 @@
 #define REG_ADDR_DECEL         0x101D // P10_29 PP 模式减速度  uint32_t
 #define REG_ADDR_HOME_MODE     0x1023 // P10_35 回零模式，支持 1~14、17~35
 
-#define SPR                    800                   /* 旋转一圈需要的脉冲数 */
+#define SPR                    1600                   /* 旋转一圈需要的脉冲数 */
 #define RPM                    3000                  // 电机最高转速
 #define TOTAL_STEPS            1650 / 125 * 12 * SPR // 总步数= 导轨行程/同步轮周长*减速比*每圈脉冲数
 #define SPEED                  RPM / 60 * SPR        // 电机速度

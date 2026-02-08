@@ -25,6 +25,7 @@ void float_to_regs_le(float f, uint16_t regs[2]);
 int32_t regs_to_int32_le(const uint16_t regs[2]);
 uint32_t regs_to_uint32_le(const uint16_t regs[2]);
 float regs_to_float_le(const uint16_t regs[2]);
+void delay_us(uint32_t us);
 
 #ifdef __cplusplus
 }
