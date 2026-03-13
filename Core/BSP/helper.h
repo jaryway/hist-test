@@ -1,4 +1,3 @@
-
 #ifndef __HELPER_H
 #define __HELPER_H
 
@@ -26,6 +25,7 @@ int32_t regs_to_int32_le(const uint16_t regs[2]);
 uint32_t regs_to_uint32_le(const uint16_t regs[2]);
 float regs_to_float_le(const uint16_t regs[2]);
 void delay_us(uint32_t us);
+uint16_t _calc_crc16(const uint8_t *buf, uint16_t len);
 
 #ifdef __cplusplus
 }

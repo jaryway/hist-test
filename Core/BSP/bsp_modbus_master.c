@@ -1,6 +1,7 @@
 #include "bsp_modbus_master.h"
 #include <stdio.h>
 #include <string.h>
+#include "helper.h"
 
 /* 可调项：发送后等待 TC 的最大等待（ms） */
 #ifndef MODBUS_TC_WAIT_MS
@@ -11,23 +12,23 @@ static UART_HandleTypeDef *mb_huart = NULL;
 static GPIO_TypeDef *mb_de_port     = NULL;
 static uint16_t mb_de_pin           = 0;
 
-/* CRC16 (Modbus) */
-static uint16_t _modbus_crc16(const uint8_t *buf, uint16_t len)
-{
-    uint16_t crc = 0xFFFF;
-    for (uint16_t pos = 0; pos < len; pos++) {
-        crc ^= (uint16_t)buf[pos];
-        for (int i = 0; i < 8; i++) {
-            if (crc & 0x0001) {
-                crc >>= 1;
-                crc ^= 0xA001;
-            } else {
-                crc >>= 1;
-            }
-        }
-    }
-    return crc;
-}
+// /* CRC16 计算 */
+// static uint16_t _calc_crc16(const uint8_t *buf, uint16_t len)
+// {
+//     uint16_t crc = 0xFFFF;
+//     for (uint16_t pos = 0; pos < len; pos++) {
+//         crc ^= (uint16_t)buf[pos];
+//         for (int i = 0; i < 8; i++) {
+//             if (crc & 0x0001) {
+//                 crc >>= 1;
+//                 crc ^= 0xA001;
+//             } else {
+//                 crc >>= 1;
+//             }
+//         }
+//     }
+//     return crc;
+// }
 
 /* 控制 DE（驱动使能） */
 static inline void _rs485_de_enable(void)
@@ -112,7 +113,7 @@ MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t
     tx_data[5] = quantity & 0xFF;        // 寄存器数量低8位
 
     // 2.计算CRC
-    crc        = _modbus_crc16(tx_data, 6);
+    crc        = _calc_crc16(tx_data, 6);
     tx_data[6] = crc & 0xFF;        // CRC低字节
     tx_data[7] = (crc >> 8) & 0xFF; // CRC高字节
 
@@ -168,7 +169,7 @@ MB_Status_t modbus_read_holding_registers(uint8_t slave, uint16_t addr, uint16_t
     // CRC 校验
     if (total_len < 5) return MB_ERR_BAD_RESPONSE;
     uint16_t resp_crc = (uint16_t)resp[total_len - 2] | ((uint16_t)resp[total_len - 1] << 8);
-    uint16_t calc_crc = _modbus_crc16(resp, total_len - 2);
+    uint16_t calc_crc = _calc_crc16(resp, total_len - 2);
     if (resp_crc != calc_crc) return MB_ERR_CRC;
 
     if (resp[1] & 0x80) {
@@ -211,7 +212,7 @@ MB_Status_t modbus_write_single_register(uint8_t slave, uint16_t addr, uint16_t 
     tx_data[3] = addr & 0xFF;
     tx_data[4] = (value >> 8) & 0xFF; // 寄存器高字节
     tx_data[5] = value & 0xFF;        // 寄存器高字节
-    crc        = _modbus_crc16(tx_data, 6);
+    crc        = _calc_crc16(tx_data, 6);
     tx_data[6] = crc & 0xFF;
     tx_data[7] = (crc >> 8) & 0xFF;
 
@@ -251,7 +252,7 @@ MB_Status_t modbus_write_single_register(uint8_t slave, uint16_t addr, uint16_t 
 
     if (total_len < 5) return MB_ERR_BAD_RESPONSE;
     uint16_t resp_crc = (uint16_t)resp[total_len - 2] | ((uint16_t)resp[total_len - 1] << 8);
-    uint16_t calc_crc = _modbus_crc16(resp, total_len - 2);
+    uint16_t calc_crc = _calc_crc16(resp, total_len - 2);
     if (resp_crc != calc_crc) return MB_ERR_CRC;
 
     if (resp[1] & 0x80) return MB_ERR_EXCEPTION;
@@ -297,7 +298,7 @@ MB_Status_t modbus_write_multiple_registers(uint8_t slave, uint16_t addr, uint16
         tx_data[idx++] = values[i] & 0xFF;        // 第 n 个数据低8位
     }
 
-    uint16_t crc   = _modbus_crc16(tx_data, idx);
+    uint16_t crc   = _calc_crc16(tx_data, idx);
     tx_data[idx++] = crc & 0xFF;
     tx_data[idx++] = (crc >> 8) & 0xFF;
 
@@ -336,7 +337,7 @@ MB_Status_t modbus_write_multiple_registers(uint8_t slave, uint16_t addr, uint16
 
     if (total_len < 5) return MB_ERR_BAD_RESPONSE;
     uint16_t resp_crc = (uint16_t)resp[total_len - 2] | ((uint16_t)resp[total_len - 1] << 8);
-    uint16_t calc_crc = _modbus_crc16(resp, total_len - 2);
+    uint16_t calc_crc = _calc_crc16(resp, total_len - 2);
     if (resp_crc != calc_crc) return MB_ERR_CRC;
 
     if (resp[1] & 0x80) return MB_ERR_EXCEPTION;
