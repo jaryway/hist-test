@@ -43,7 +43,7 @@ extern "C" {
 
 void dwin_dgus_init(UART_HandleTypeDef *huart);
 
-void dwin_dgus_read_label(uint16_t var_addr);
+uint16_t* dwin_dgus_read_label(uint16_t var_addr);
 void dwin_dgus_write_label(void);
 void dwin_dgus_switch_page(void);
 

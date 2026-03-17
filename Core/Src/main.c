@@ -207,33 +207,33 @@ int main(void)
 
     printf("System start\r\n");
 
-    uint16_t regs[DWIN_DGUS_MAX_DATA_LEN];
+    // uint16_t regs[DWIN_DGUS_MAX_DATA_LEN];
 
-    bsp_dwin_dgus_init(LCD_HUART);
+    // bsp_dwin_dgus_init(LCD_HUART);
 
-    // 读取当前页面ID 5a a5 04 83 00 14 01
-    bsp_dwin_dgus_read_var_regs(0x14, 0x01, &regs[0], 0, 1000);
+    // // 读取当前页面ID 5a a5 04 83 00 14 01
+    // bsp_dwin_dgus_read_var_regs(0x14, 0x01, &regs[0], 0, 1000);
 
-    // 打印regs
-    for (int i = 0; i < 0x01; i++) {
-        printf("%02x ", regs[i]);
-    }
+    // // 打印regs
+    // for (int i = 0; i < 0x01; i++) {
+    //     printf("%02x ", regs[i]);
+    // }
     // printf("Page ID: %02x %02x %02x %02x %02x %02x %02x\r\n", regs[0], regs[1], regs[2], regs[3], regs[4], regs[5], regs[6]);
 
     // HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
 
-    // motor_pwm_init(&motor_pwm, &htim3, MOTOR42_PWM_TIMER_CHANNEL, DIRE_PORT, DIRE_PIN, ENAB_PORT, ENAB_PIN);
+    motor_pwm_init(&motor_pwm, &htim3, MOTOR42_PWM_TIMER_CHANNEL, DIRE_PORT, DIRE_PIN, ENAB_PORT, ENAB_PIN);
 
-    // float accel_time = 1.0f;                              // 期望1秒完成速度变化
-    // uint32_t speed   = 600.0f / 60.0f * SPR;              // 根据转速计算速度
-    // uint32_t accel   = (1000.0f / 60 * SPR) / accel_time; // a = v/t
-    // uint32_t decel   = accel;                             // 减速度与加速度相同
+    float accel_time = 1.0f;                              // 期望1秒完成速度变化
+    uint32_t speed   = 600.0f / 60.0f * SPR;              // 根据转速计算速度
+    uint32_t accel   = (1000.0f / 60 * SPR) / accel_time; // a = v/t
+    uint32_t decel   = accel;                             // 减速度与加速度相同
 
-    // motor_pwm_set_accel(&motor_pwm, accel);
-    // motor_pwm_set_decel(&motor_pwm, decel);
-    // motor_pwm_set_speed(&motor_pwm, speed);
+    motor_pwm_set_accel(&motor_pwm, accel);
+    motor_pwm_set_decel(&motor_pwm, decel);
+    motor_pwm_set_speed(&motor_pwm, speed);
 
-    // motor_pwm_move(&motor_pwm, 100000);
+    motor_pwm_move(&motor_pwm, 100000);
 
     /* USER CODE END 2 */
 
