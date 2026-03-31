@@ -54,7 +54,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Core/BSP/bsp_dwin_dgus.c
     ${CMAKE_SOURCE_DIR}/Core/Src/motor_mb.c
     ${CMAKE_SOURCE_DIR}/Core/Src/motor_pwm.c
-    ${CMAKE_SOURCE_DIR}/Core/Src/dwin_dgus.c
+    ${CMAKE_SOURCE_DIR}/Core/Src/screen_dgus.c
 )
 
 # Add include paths

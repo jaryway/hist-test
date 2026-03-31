@@ -34,7 +34,7 @@
 #include "motor_mb.h"
 #include "motor_pwm.h"
 #include "config.h"
-#include "bsp_dwin_dgus.h"
+#include "screen.h"
 
 // #define MODBUS_HUART huart1 // modbus 通信 com3
 // #define LCD_HUART    huart2 // lcd 屏幕通信
@@ -72,6 +72,7 @@
 /* USER CODE BEGIN PV */
 
 MotorPWM_t motor_pwm; // 添加电机实例
+Screen_t screen;
 
 // Profile_t motor42_profile = {
 //     .max_rpm          = 1000,     // 最高转速
@@ -221,19 +222,32 @@ int main(void)
     // printf("Page ID: %02x %02x %02x %02x %02x %02x %02x\r\n", regs[0], regs[1], regs[2], regs[3], regs[4], regs[5], regs[6]);
 
     // HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
+    // uint16_t data = 0x3130;
 
-    motor_pwm_init(&motor_pwm, &htim3, MOTOR42_PWM_TIMER_CHANNEL, DIRE_PORT, DIRE_PIN, ENAB_PORT, ENAB_PIN);
+    uint8_t data[] = {
+        0xD4, 0xC6, // 云
+        0xC4, 0xCF, // 南
+        0xff, 0xff  // 结束符
+    };
+    uint16_t data_len = sizeof(data) / sizeof(data[0]);
 
-    float accel_time = 1.0f;                              // 期望1秒完成速度变化
-    uint32_t speed   = 600.0f / 60.0f * SPR;              // 根据转速计算速度
-    uint32_t accel   = (1000.0f / 60 * SPR) / accel_time; // a = v/t
-    uint32_t decel   = accel;                             // 减速度与加速度相同
+    screen_init(&screen, LCD_HUART);
+    screen_switch_page(&screen, 0x01);               // 5A A5 07 82 00 84 5A 01 00 01
+    screen_write_text(&screen, 0x1300, "Hello1111"); // 写入 "Hello"
+    screen_write_str_bytes(&screen, 0x1300, data, data_len);
 
-    motor_pwm_set_accel(&motor_pwm, accel);
-    motor_pwm_set_decel(&motor_pwm, decel);
-    motor_pwm_set_speed(&motor_pwm, speed);
+    // motor_pwm_init(&motor_pwm, &htim3, MOTOR42_PWM_TIMER_CHANNEL, DIRE_PORT, DIRE_PIN, ENAB_PORT, ENAB_PIN);
 
-    motor_pwm_move(&motor_pwm, 100000);
+    // float accel_time = 1.0f;                              // 期望1秒完成速度变化
+    // uint32_t speed   = 600.0f / 60.0f * SPR;              // 根据转速计算速度
+    // uint32_t accel   = (1000.0f / 60 * SPR) / accel_time; // a = v/t
+    // uint32_t decel   = accel;                             // 减速度与加速度相同
+
+    // motor_pwm_set_accel(&motor_pwm, accel);
+    // motor_pwm_set_decel(&motor_pwm, decel);
+    // motor_pwm_set_speed(&motor_pwm, speed);
+
+    // motor_pwm_move(&motor_pwm, 100000);
 
     /* USER CODE END 2 */
 

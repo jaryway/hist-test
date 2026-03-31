@@ -9,8 +9,8 @@
 #define DWIN_DGUS_TC_WAIT_MS 100
 #endif
 
-#define DWIN_DGUS_HEADER1 0x5A
-#define DWIN_DGUS_HEADER2 0xA5
+#define DGUS_HEADER1 0x5A
+#define DGUS_HEADER2 0xA5
 
 static UART_HandleTypeDef *dd_huart = NULL;
 
@@ -25,7 +25,7 @@ static DD_Status_t _check_crc16(const uint8_t *buf, uint16_t len)
 static DD_Status_t _check_header_and_len(const uint8_t *resp, uint16_t read_len)
 {
     // 验证帧头
-    if (resp[0] != DWIN_DGUS_HEADER1 || resp[1] != DWIN_DGUS_HEADER2) {
+    if (resp[0] != DGUS_HEADER1 || resp[1] != DGUS_HEADER2) {
         return DD_ERR_BAD_RESPONSE;
     }
 
@@ -76,8 +76,8 @@ DD_Status_t bsp_dwin_dgus_write_regs(uint8_t page_addr, uint8_t reg_addr, uint16
     // 数据=页面+寄存器+写入的数据
 
     int idx    = 0;
-    req[idx++] = DWIN_DGUS_HEADER1;
-    req[idx++] = DWIN_DGUS_HEADER2;
+    req[idx++] = DGUS_HEADER1;
+    req[idx++] = DGUS_HEADER2;
     req[idx++] = 3 + data_len * 2; // 数据长度=1(指令) + 1(页面) + 1(寄存器) + 写入数据的字节长度
     req[idx++] = 0x80;             // 指令
     req[idx++] = page_addr;        // 寄存器页面
@@ -122,8 +122,8 @@ DD_Status_t bsp_dwin_dgus_read_regs(uint8_t page_addr, uint8_t reg_addr, uint8_t
     uint8_t req[DWIN_DGUS_MAX_DATA_LEN];
 
     int idx    = 0;
-    req[idx++] = DWIN_DGUS_HEADER1;
-    req[idx++] = DWIN_DGUS_HEADER2;
+    req[idx++] = DGUS_HEADER1;
+    req[idx++] = DGUS_HEADER2;
     req[idx++] = 4;         // 数据长度
     req[idx++] = 0x81;      // 指令
     req[idx++] = page_addr; // 寄存器页面
@@ -185,8 +185,8 @@ DD_Status_t bsp_dwin_dgus_write_var_regs(uint16_t var_addr, uint16_t *data, uint
     // 数据=变量空间首地址+写入的数据
 
     int idx    = 0;
-    req[idx++] = DWIN_DGUS_HEADER1;
-    req[idx++] = DWIN_DGUS_HEADER2;
+    req[idx++] = DGUS_HEADER1;
+    req[idx++] = DGUS_HEADER2;
     req[idx++] = 3 + data_len * 2;       // 数据长度=1(指令) + 1(页面) + 1(寄存器) + data_len*2
     req[idx++] = 0x82;                   // 指令
     req[idx++] = (var_addr >> 8) & 0xFF; // 变量空间首地址高 8 位
@@ -232,8 +232,8 @@ DD_Status_t bsp_dwin_dgus_read_var_regs(uint16_t var_addr, uint8_t read_len, uin
     uint8_t req[DWIN_DGUS_MAX_DATA_LEN];
 
     int idx    = 0;
-    req[idx++] = DWIN_DGUS_HEADER1;
-    req[idx++] = DWIN_DGUS_HEADER2;
+    req[idx++] = DGUS_HEADER1;
+    req[idx++] = DGUS_HEADER2;
     req[idx++] = 4;                      // 数据长度
     req[idx++] = 0x83;                   // 指令
     req[idx++] = (var_addr >> 8) & 0xFF; // 变量空间首地址高 8 位
