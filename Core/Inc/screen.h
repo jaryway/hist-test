@@ -25,7 +25,53 @@ extern "C" {
 
 /* USER CODE END Private defines */
 
-#define DWIN_DGUS_MAX_DATA_LEN 256
+#define DWIN_DGUS_MAX_DATA_LEN    256
+#define SN_REG_ADDR_COMPANY_NAME  0x1000 // 公司名称
+#define SN_REG_ADDR_SLOGAN        0x1100 // 公司口号
+#define SN_REG_ADDR_TOT_CNT_TXT   0x1200 // 总计数标签
+#define SN_REG_ADDR_TOT_CNT_VAL   0x1300 // 总计数值
+#define SN_REG_ADDR_RPM_TXT       0x1400 // 转速标签
+#define SN_REG_ADDR_RPM_VAL       0x1500 // 转速值
+#define SN_REG_ADDR_CUR_CNT_TXT   0x1600 // 当前计数标签
+#define SN_REG_ADDR_CUR_CNT_VAL   0x1700 // 当前计数值
+#define SN_REG_ADDR_POS_TXT       0x1800 // 位置标签
+#define SN_REG_ADDR_POS_VAL       0x1900 // 位置值
+#define SN_REG_ADDR_MODE_TXT      0x1A00 // 模式标签
+#define SN_REG_ADDR_MODE_VAL      0x1B00 // 模式值
+#define SN_REG_ADDR_STA_TXT       0x1C00 // 状态标签
+#define SN_REG_ADDR_STA_VAL       0x1D00 // 状态值
+#define SN_REG_ADDR_LOAD_RATE_TXT 0x1E00 // 负载率标签
+#define SN_REG_ADDR_LOAD_RATE_VAL 0x1F00 // 负载率值
+#define SN_REG_ADDR_DN_TXT        0x2000 // 下限位标签
+#define SN_REG_ADDR_DN_VAL        0x2001 // 下限位值
+#define SN_REG_ADDR_UP_TXT        0x2002 // 上限位标签
+#define SN_REG_ADDR_UP_VAL        0x2003 // 上限位值
+#define SN_REG_ADDR_LD_TXT        0x2004 // 装载标签
+#define SN_REG_ADDR_LD_VAL        0x2005 // 装载值
+
+// 上烟 (4字节)
+static const uint8_t shangyan[] = {
+    0xC9, 0xCF, // 上
+    0xD1, 0xCC  // 烟
+};
+
+// 下烟 (4字节)
+static const uint8_t xiayan[] = {
+    0xCF, 0xC2, // 下
+    0xD1, 0xCC  // 烟
+};
+
+// 运行中
+static const uint8_t running[] = {
+    0xD4, 0xCB, // 运
+    0xD0, 0xD0, // 行
+    0xD6, 0xD0  // 中
+};
+// 急停
+static const uint8_t stoped[] = {
+    0xBC, 0xB1, // 急
+    0xCD, 0xA3  // 停
+};
 
 typedef enum {
     SN_OK = 0,
@@ -46,33 +92,39 @@ typedef struct {
 #define SCREEN_DEBUG 1
 #endif
 
-void screen_init(Screen_t *dwin, UART_HandleTypeDef *huart);
+#ifndef SCREEN_TYPE
+#define SCREEN_TYPE 1 /* 1: DGUS 2: TSUIC1*/
+#endif
 
-uint8_t *screen_read_data(Screen_t *dwin, uint16_t var_addr, uint8_t len);
+void screen_init(Screen_t *screen, UART_HandleTypeDef *huart);
 /**
- * @brief  写入DWIN标签
- * @param  dwin: DWIN句柄
+ * @brief  读取数据
+ */
+uint8_t *screen_read_data(Screen_t *screen, uint16_t var_addr, uint8_t len);
+/**
+ * @brief  写入数据(不支持中文)
+ * @param  screen: screen句柄
  * @param  var_addr: 变量地址
  * @param  text: 文本
  * @retval 状态
  */
-SN_Status_t screen_write_text(Screen_t *dwin, uint16_t var_addr, const char *text);
+SN_Status_t screen_write_text(Screen_t *screen, uint16_t var_addr, const char *text);
 /**
- * @brief  写入DWIN标签
- * @param  dwin: DWIN句柄
+ * @brief  写入数据
+ * @param  screen: screen句柄
  * @param  var_addr: 变量地址
  * @param  bytes: 字节数组
  * @param  len: 字节长度
  * @retval 状态
  */
-SN_Status_t screen_write_str_bytes(Screen_t *dwin, uint16_t var_addr, const uint8_t *bytes, uint8_t len);
+SN_Status_t screen_write_str_bytes(Screen_t *screen, uint16_t var_addr, const uint8_t *bytes, uint8_t len);
 /**
- * @brief  切换DWIN页面
- * @param  dwin: DWIN句柄
+ * @brief  切换页面
+ * @param  screen: screen 句柄
  * @param  page: 页面编号
  * @retval 状态
  */
-SN_Status_t screen_switch_page(Screen_t *dwin, uint8_t page);
+SN_Status_t screen_switch_page(Screen_t *screen, uint8_t page);
 
 /* USER CODE BEGIN Prototypes */
 

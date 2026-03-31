@@ -58,127 +58,127 @@ static SN_Status_t _cmd_recive(UART_HandleTypeDef *huart, uint8_t *buf, uint16_t
     return SN_OK;
 }
 
-/* 0x80功能码：从指定地址开始写数据串到寄存器。 */
-static SN_Status_t _dgus_write_regs(UART_HandleTypeDef *huart,
-                                    uint8_t page_addr,
-                                    uint8_t reg_addr,
-                                    uint8_t *data,
-                                    uint16_t data_len,
-                                    uint8_t need_crc,
-                                    uint32_t timeout_ms)
-{
-    SN_Status_t ret;
-    uint16_t crc;
-    uint8_t req[DWIN_DGUS_MAX_DATA_LEN];
+// /* 0x80功能码：从指定地址开始写数据串到寄存器。 */
+// static SN_Status_t _dgus_write_regs(UART_HandleTypeDef *huart,
+//                                     uint8_t page_addr,
+//                                     uint8_t reg_addr,
+//                                     uint8_t *data,
+//                                     uint16_t data_len,
+//                                     uint8_t need_crc,
+//                                     uint32_t timeout_ms)
+// {
+//     SN_Status_t ret;
+//     uint16_t crc;
+//     uint8_t req[DWIN_DGUS_MAX_DATA_LEN];
 
-    // 数据帧=帧头+数据长度+指令+数据
-    // 数据长度=1(指令) + 1(页面) + 1(寄存器) + 写入数据的字节长度
-    // 数据=页面+寄存器+写入的数据
+//     // 数据帧=帧头+数据长度+指令+数据
+//     // 数据长度=1(指令) + 1(页面) + 1(寄存器) + 写入数据的字节长度
+//     // 数据=页面+寄存器+写入的数据
 
-    int idx    = 0;
-    req[idx++] = DGUS_HEADER1;
-    req[idx++] = DGUS_HEADER2;
-    req[idx++] = 3 + data_len * 2; // 数据长度=1(指令) + 1(页面) + 1(寄存器) + 写入数据的字节长度
-    req[idx++] = 0x80;             // 指令
-    req[idx++] = page_addr;        // 寄存器页面
-    req[idx++] = reg_addr;         // 寄存器地址
+//     int idx    = 0;
+//     req[idx++] = DGUS_HEADER1;
+//     req[idx++] = DGUS_HEADER2;
+//     req[idx++] = 3 + data_len * 2; // 数据长度=1(指令) + 1(页面) + 1(寄存器) + 写入数据的字节长度
+//     req[idx++] = 0x80;             // 指令
+//     req[idx++] = page_addr;        // 寄存器页面
+//     req[idx++] = reg_addr;         // 寄存器地址
 
-    /* 写入的数据 */
-    for (uint16_t i = 0; i < data_len; i++) {
-        req[idx++] = data[i];
-    }
+//     /* 写入的数据 */
+//     for (uint16_t i = 0; i < data_len; i++) {
+//         req[idx++] = data[i];
+//     }
 
-    if (need_crc) {
-        crc        = _calc_crc16(&req[2], idx - 2);
-        req[idx++] = crc & 0xFF;        // CRC低字节
-        req[idx++] = (crc >> 8) & 0xFF; // CRC高字节
-    }
+//     if (need_crc) {
+//         crc        = _calc_crc16(&req[2], idx - 2);
+//         req[idx++] = crc & 0xFF;        // CRC低字节
+//         req[idx++] = (crc >> 8) & 0xFF; // CRC高字节
+//     }
 
-#if SCREEN_DEBUG
-    PRINT_DEBUG("TX(0x80): ");
-    for (int i = 0; i < idx; i++) PRINT_DEBUG("%02X ", req[i]);
-    PRINT_DEBUG("\n");
-#endif
+// #if SCREEN_DEBUG
+//     PRINT_DEBUG("TX(0x80): ");
+//     for (int i = 0; i < idx; i++) PRINT_DEBUG("%02X ", req[i]);
+//     PRINT_DEBUG("\n");
+// #endif
 
-    ret = _cmd_send(huart, req, idx, timeout_ms);
+//     ret = _cmd_send(huart, req, idx, timeout_ms);
 
-    return ret;
-}
+//     return ret;
+// }
 
-/* 0x81功能码：从指定寄存器开始读数据。 */
-static SN_Status_t _dgus_read_regs(UART_HandleTypeDef *huart,
-                                   uint8_t page_addr,
-                                   uint8_t reg_addr,
-                                   uint8_t read_len,
-                                   uint16_t *dest,
-                                   uint8_t need_crc,
-                                   uint32_t timeout_ms)
-{
-    // 数据帧=帧头+数据长度+指令+数据
-    // 数据长度=1(指令) + 1(页面) + 1(寄存器) + 1(读取数据字节长度(0x01-0xFB))
-    // 数据=页面+寄存器+读取的数据长度
+// /* 0x81功能码：从指定寄存器开始读数据。 */
+// static SN_Status_t _dgus_read_regs(UART_HandleTypeDef *huart,
+//                                    uint8_t page_addr,
+//                                    uint8_t reg_addr,
+//                                    uint8_t read_len,
+//                                    uint16_t *dest,
+//                                    uint8_t need_crc,
+//                                    uint32_t timeout_ms)
+// {
+//     // 数据帧=帧头+数据长度+指令+数据
+//     // 数据长度=1(指令) + 1(页面) + 1(寄存器) + 1(读取数据字节长度(0x01-0xFB))
+//     // 数据=页面+寄存器+读取的数据长度
 
-    if (!dest || read_len == 0 || read_len > 0xFB || timeout_ms == 0) {
-        return SN_ERR_PARAM;
-    }
+//     if (!dest || read_len == 0 || read_len > 0xFB || timeout_ms == 0) {
+//         return SN_ERR_PARAM;
+//     }
 
-    SN_Status_t ret;
-    uint16_t crc;
-    uint8_t req[DWIN_DGUS_MAX_DATA_LEN];
+//     SN_Status_t ret;
+//     uint16_t crc;
+//     uint8_t req[DWIN_DGUS_MAX_DATA_LEN];
 
-    int idx    = 0;
-    req[idx++] = DGUS_HEADER1;
-    req[idx++] = DGUS_HEADER2;
-    req[idx++] = 4;         // 数据长度
-    req[idx++] = 0x81;      // 指令
-    req[idx++] = page_addr; // 寄存器页面
-    req[idx++] = reg_addr;  // 寄存器地址
-    req[idx++] = read_len;  // 读取数据字节长度(0x01-0xFB)
+//     int idx    = 0;
+//     req[idx++] = DGUS_HEADER1;
+//     req[idx++] = DGUS_HEADER2;
+//     req[idx++] = 4;         // 数据长度
+//     req[idx++] = 0x81;      // 指令
+//     req[idx++] = page_addr; // 寄存器页面
+//     req[idx++] = reg_addr;  // 寄存器地址
+//     req[idx++] = read_len;  // 读取数据字节长度(0x01-0xFB)
 
-    if (need_crc) {
-        crc        = _calc_crc16(&req[2], idx - 2);
-        req[idx++] = crc & 0xFF;        // CRC低字节
-        req[idx++] = (crc >> 8) & 0xFF; // CRC高字节
-    }
+//     if (need_crc) {
+//         crc        = _calc_crc16(&req[2], idx - 2);
+//         req[idx++] = crc & 0xFF;        // CRC低字节
+//         req[idx++] = (crc >> 8) & 0xFF; // CRC高字节
+//     }
 
-#if SCREEN_DEBUG
-    PRINT_DEBUG("TX(0x81): ");
-    for (int i = 0; i < idx; i++) PRINT_DEBUG("%02X ", req[i]);
-    PRINT_DEBUG("\n");
-#endif
+// #if SCREEN_DEBUG
+//     PRINT_DEBUG("TX(0x81): ");
+//     for (int i = 0; i < idx; i++) PRINT_DEBUG("%02X ", req[i]);
+//     PRINT_DEBUG("\n");
+// #endif
 
-    // 发送数据
-    ret = _cmd_send(huart, req, idx, timeout_ms);
-    if (ret != SN_OK) return ret;
+//     // 发送数据
+//     ret = _cmd_send(huart, req, idx, timeout_ms);
+//     if (ret != SN_OK) return ret;
 
-    // 接收数据
-    uint8_t resp[DWIN_DGUS_MAX_DATA_LEN];
-    memset(resp, 0, sizeof(resp));
+//     // 接收数据
+//     uint8_t resp[DWIN_DGUS_MAX_DATA_LEN];
+//     memset(resp, 0, sizeof(resp));
 
-    uint32_t t_start = HAL_GetTick();
-    uint16_t len     = read_len + 4 + (need_crc ? 2 : 0);
-    ret              = _cmd_recive(huart, resp, len, t_start, timeout_ms);
-    if (ret != SN_OK) return ret;
+//     uint32_t t_start = HAL_GetTick();
+//     uint16_t len     = read_len + 4 + (need_crc ? 2 : 0);
+//     ret              = _cmd_recive(huart, resp, len, t_start, timeout_ms);
+//     if (ret != SN_OK) return ret;
 
-    ret = _check_header_and_len(resp, read_len);
-    if (ret != SN_OK) return ret;
+//     ret = _check_header_and_len(resp, read_len);
+//     if (ret != SN_OK) return ret;
 
-    if (need_crc) {
-        ret = _check_crc16(resp, len);
-        if (ret != SN_OK) return ret;
-    }
+//     if (need_crc) {
+//         ret = _check_crc16(resp, len);
+//         if (ret != SN_OK) return ret;
+//     }
 
-    // // 解析数据（大端）到 dest
-    // for (uint16_t i = 0; i < read_len; i++) {
-    //     uint16_t hi = resp[4 + 2 * i];
-    //     uint16_t lo = resp[4 + 2 * i + 1];
-    //     dest[i]     = (uint16_t)((hi << 8) | lo);
-    // }
+//     // // 解析数据（大端）到 dest
+//     // for (uint16_t i = 0; i < read_len; i++) {
+//     //     uint16_t hi = resp[4 + 2 * i];
+//     //     uint16_t lo = resp[4 + 2 * i + 1];
+//     //     dest[i]     = (uint16_t)((hi << 8) | lo);
+//     // }
 
-    memcpy(dest, &resp[4], read_len);
+//     memcpy(dest, &resp[4], read_len);
 
-    return ret;
-}
+//     return ret;
+// }
 
 /* 0x82功能码：从指定地址开始写数据串(字数据)到变量空间。 */
 static SN_Status_t _dgus_write_var_regs(UART_HandleTypeDef *huart,
@@ -299,19 +299,15 @@ static SN_Status_t _dgus_read_var_regs(UART_HandleTypeDef *huart,
 
     return ret;
 }
-void screen_init(Screen_t *dwin, UART_HandleTypeDef *huart)
+void screen_init(Screen_t *screen, UART_HandleTypeDef *huart)
 {
-    dwin->huart = huart;
+    screen->huart = huart;
 }
-uint8_t *screen_read_data(Screen_t *dwin, uint16_t var_addr, uint8_t len)
+uint8_t *screen_read_data(Screen_t *screen, uint16_t var_addr, uint8_t len)
 {
     static uint8_t _regs[DWIN_DGUS_MAX_DATA_LEN]; // static 关键字，数据在静态区
 
-    // if (len > DWIN_DGUS_MAX_DATA_LEN) {
-    //     return NULL; // 长度超限
-    // }
-
-    SN_Status_t res = _dgus_read_var_regs(dwin->huart, var_addr, len, _regs, 0, 1000);
+    SN_Status_t res = _dgus_read_var_regs(screen->huart, var_addr, len, _regs, 0, 1000);
     if (res != SN_OK) {
         return NULL; // 读取失败返回 NULL
     }
@@ -322,7 +318,7 @@ uint8_t *screen_read_data(Screen_t *dwin, uint16_t var_addr, uint8_t len)
 /**
  * @brief
  */
-SN_Status_t screen_write_text(Screen_t *dwin, uint16_t var_addr, const char *text)
+SN_Status_t screen_write_text(Screen_t *screen, uint16_t var_addr, const char *text)
 {
     uint8_t data[DWIN_DGUS_MAX_DATA_LEN];
     uint16_t text_len = strlen(text);
@@ -338,10 +334,10 @@ SN_Status_t screen_write_text(Screen_t *dwin, uint16_t var_addr, const char *tex
     data[text_len++] = 0xFF;
     data[text_len++] = 0xFF;
 
-    return _dgus_write_var_regs(dwin->huart, var_addr, data, text_len, 0, 1000);
+    return _dgus_write_var_regs(screen->huart, var_addr, data, text_len, 0, 1000);
 }
 
-SN_Status_t screen_write_str_bytes(Screen_t *dwin, uint16_t var_addr, const uint8_t *bytes, uint8_t len)
+SN_Status_t screen_write_str_bytes(Screen_t *screen, uint16_t var_addr, const uint8_t *bytes, uint8_t len)
 {
     uint8_t data[DWIN_DGUS_MAX_DATA_LEN];
 
@@ -349,9 +345,9 @@ SN_Status_t screen_write_str_bytes(Screen_t *dwin, uint16_t var_addr, const uint
         data[i] = bytes[i]; // 高8位为0，低8位为ASCII码
     }
 
-    return _dgus_write_var_regs(dwin->huart, var_addr, data, len, 0, 1000);
+    return _dgus_write_var_regs(screen->huart, var_addr, data, len, 0, 1000);
 }
-SN_Status_t screen_switch_page(Screen_t *dwin, uint8_t page)
+SN_Status_t screen_switch_page(Screen_t *screen, uint8_t page)
 {
 
     uint16_t var_addr = 0x84; // 变量地址
@@ -362,10 +358,10 @@ SN_Status_t screen_switch_page(Screen_t *dwin, uint8_t page)
     data[len++] = (uint8_t)(page >> 8);   // D1 页面地址高8位
     data[len++] = (uint8_t)(page & 0xFF); // D0 页面地址低8位
 
-    return _dgus_write_var_regs(dwin->huart, var_addr, data, len, 0, 1000);
+    return _dgus_write_var_regs(screen->huart, var_addr, data, len, 0, 1000);
 }
 /**/
-SN_Status_t screen_set_config(Screen_t *dwin, uint8_t config)
+SN_Status_t screen_set_config(Screen_t *screen, uint8_t config)
 {
 
     uint16_t var_addr = 0x80; // 变量地址-System_Config
@@ -389,14 +385,14 @@ SN_Status_t screen_set_config(Screen_t *dwin, uint8_t config)
     data[len++] = 0x00;   // D1 触摸屏模式配置值，只读
     data[len++] = config; // D0 系统状态设置
 
-    return _dgus_write_var_regs(dwin->huart, var_addr, data, len, 0, 1000);
+    return _dgus_write_var_regs(screen->huart, var_addr, data, len, 0, 1000);
 }
 
-SN_Status_t screen_get_page(Screen_t *dwin)
+SN_Status_t screen_get_page(Screen_t *screen)
 {
     uint16_t var_addr = 0x14; // 变量地址-当前显示页面ID
     uint8_t dest[DWIN_DGUS_MAX_DATA_LEN];
     uint8_t read_len = 1;
 
-    return _dgus_read_var_regs(dwin->huart, var_addr, read_len, dest, 0, 1000);
+    return _dgus_read_var_regs(screen->huart, var_addr, read_len, dest, 0, 1000);
 }
