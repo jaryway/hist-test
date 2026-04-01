@@ -4,31 +4,20 @@
 #include "debug.h"
 #include "helper.h"
 #include "screen.h"
-
-#ifndef SCREEN_TYPE
-#define SCREEN_TYPE 2 /* 1: DGUS 2: TSUIC1*/
-#endif
-
 // 指令定义
 #define TSUIC1_HEADER        0xAA
 #define TSUIC1_FOOTER        0xCC33C33C
 
 #define CMD_HANDSHAKE        0x00
-#define CMD_BACKLIGHT        0x30
+// #define CMD_BACKLIGHT        0x30
 #define CMD_CLEAR_SCREEN     0x01
 #define CMD_DRAW_STRING      0x11
 #define CMD_SHOW_JPEG        0x22
-#define CMD_SHOW_QRCODE      0x21
-#define TSUIC1_COLOR_BLACK   0x0000
-#define COLOR0               0x00
+// #define CMD_SHOW_QRCODE      0x21
+
+#define COLOR0               0x0000
 #define COLOR1               0x2945
 #define COLOR2               0x528A
-#define TSUIC1_COLOR_RED     0xF800
-#define C_GREEN              0x19E0
-#define TSUIC1_COLOR_BLUE    0x001F
-#define TSUIC1_COLOR_YELLOW  0xFFE0
-#define TSUIC1_COLOR_CYAN    0x07FF
-#define TSUIC1_COLOR_MAGENTA 0xF81F
 
 typedef struct {
     uint16_t addr;     // 变量地址
@@ -46,7 +35,6 @@ static uint8_t rx_index;
 static uint8_t received_byte;
 static uint8_t frame_started = 0;
 
-
 // 控件数组
 static Widget_t widgets[] = {
     {SN_REG_ADDR_COMPANY_NAME, 128 + 3, COLOR1, COLOR0, 100, 16, 280, 24},
@@ -61,14 +49,14 @@ static Widget_t widgets[] = {
     // {SN_REG_ADDR_STA_TXT, 128 + 2, COLOR1, COLOR0, 24, 189, 130, 120},
     // {SN_REG_ADDR_STA_VAL, 128 + 3, COLOR1, COLOR0, 100, 186, 130, 120},
 
+    {SN_REG_ADDR_MODE_TXT, 128 + 2, COLOR1, COLOR0, 24, 189, 130, 120},
+    {SN_REG_ADDR_MODE_VAL, 128 + 3, COLOR1, COLOR0, 100, 186, 130, 120},
+
     {SN_REG_ADDR_RPM_TXT, 128 + 2, COLOR1, COLOR0, 259, 97, 130, 120},
     {SN_REG_ADDR_RPM_VAL, 128 + 4, COLOR1, COLOR0, 336, 94, 126, 120},
 
     {SN_REG_ADDR_POS_TXT, 128 + 2, COLOR1, COLOR0, 259, 143, 130, 120},
     {SN_REG_ADDR_POS_VAL, 128 + 4, COLOR1, COLOR0, 336, 140, 130, 120},
-
-     {SN_REG_ADDR_MODE_TXT, 128 + 2, COLOR1, COLOR0, 24, 189, 130, 120},
-    {SN_REG_ADDR_MODE_VAL, 128 + 3, COLOR1, COLOR0, 100, 186, 130, 120},
 
     {SN_REG_ADDR_LOAD_RATE_TXT, 128 + 2, COLOR1, COLOR0, 259, 189, 130, 120},
     {SN_REG_ADDR_LOAD_RATE_VAL, 128 + 4, COLOR1, COLOR0, 336, 186, 130, 120},
@@ -90,11 +78,57 @@ static Widget_t widgets[] = {
 // 根据地址查找控件
 static Widget_t *_find_widget_by_addr(uint16_t addr)
 {
-    for (uint8_t i = 0; i < sizeof(widgets) / sizeof(widgets[0]); i++) {
-        if (widgets[i].addr == addr) {
-            return &widgets[i];
-        }
+    switch (addr) {
+        case SN_REG_ADDR_COMPANY_NAME:
+            return &widgets[0];
+        case SN_REG_ADDR_SLOGAN:
+            return &widgets[1];
+        case SN_REG_ADDR_TOT_CNT_TXT:
+            return &widgets[2];
+        case SN_REG_ADDR_TOT_CNT_VAL:
+            return &widgets[3];
+        case SN_REG_ADDR_CUR_CNT_TXT:
+            return &widgets[4];
+        case SN_REG_ADDR_CUR_CNT_VAL:
+            return &widgets[5];
+        case SN_REG_ADDR_MODE_TXT:
+            return &widgets[6];
+        case SN_REG_ADDR_MODE_VAL:
+            return &widgets[7];
+        case SN_REG_ADDR_RPM_TXT:
+            return &widgets[8];
+        case SN_REG_ADDR_RPM_VAL:
+            return &widgets[9];
+        case SN_REG_ADDR_POS_TXT:
+            return &widgets[10];
+        case SN_REG_ADDR_POS_VAL:
+            return &widgets[11];
+        case SN_REG_ADDR_LOAD_RATE_TXT:
+            return &widgets[12];
+        case SN_REG_ADDR_LOAD_RATE_VAL:
+            return &widgets[13];
+        case SN_REG_ADDR_DN_TXT:
+            return &widgets[14];
+        case SN_REG_ADDR_DN_VAL:
+            return &widgets[15];
+        case SN_REG_ADDR_UP_TXT:
+            return &widgets[16];
+        case SN_REG_ADDR_UP_VAL:
+            return &widgets[17];
+        case SN_REG_ADDR_LD_TXT:
+            return &widgets[18];
+        case SN_REG_ADDR_LD_VAL:
+            return &widgets[19];
+        case SN_REG_ADDR_HOMING:
+            return &widgets[20];
+        default:
+            return NULL;
     }
+    // for (uint8_t i = 0; i < sizeof(widgets) / sizeof(widgets[0]); i++) {
+    //     if (widgets[i].addr == addr) {
+    //         return &widgets[i];
+    //     }
+    // }
     return NULL; // 未找到
 }
 // 发送指令（私有函数）
@@ -309,13 +343,14 @@ SN_Status_t screen_write_str_bytes(Screen_t *screen, uint16_t var_addr, const ui
 SN_Status_t screen_switch_page(Screen_t *screen, uint8_t page)
 {
     _clear_screen(screen, COLOR0);
+
     uint8_t data[DWIN_DGUS_MAX_DATA_LEN];
     uint16_t idx = 0;
 
     data[idx++] = (uint8_t)(page >> 8);   // 页面高字节
     data[idx++] = (uint8_t)(page & 0xFF); // 页面低字节
 
-    _send_command(screen, CMD_SHOW_JPEG, data, idx);
+    _send_command(screen, CMD_SHOW_JPEG, data, idx); // 更改背景图片
 
     SN_Status_t res;
 
@@ -323,8 +358,7 @@ SN_Status_t screen_switch_page(Screen_t *screen, uint8_t page)
     res = screen_write_str_bytes(screen, SN_REG_ADDR_COMPANY_NAME, company_name, 20);
     res = screen_write_str_bytes(screen, SN_REG_ADDR_SLOGAN, slogan, 18);
     if (page == 0x00) {
-        // 显示电机回零中
-        res = screen_write_str_bytes(screen, SN_REG_ADDR_HOMING, motor_init_msg, 13);
+        res = screen_write_str_bytes(screen, SN_REG_ADDR_HOMING, motor_init_msg, 13); // 显示电机回零中
     } else if (page == 0x01) {
         res = screen_write_str_bytes(screen, SN_REG_ADDR_TOT_CNT_TXT, tot_cnt_txt, 4);
         res = screen_write_str_bytes(screen, SN_REG_ADDR_CUR_CNT_TXT, cur_cnt_txt, 4);
