@@ -28,12 +28,14 @@
 #include <string.h>
 #include <math.h>
 
+#include "debug.h"
 #include "dma_db.h"
 #include "helper.h"
 #include "bsp_modbus_master.h"
 #include "motor_mb.h"
 #include "motor_pwm.h"
 #include "config.h"
+#include "lcd.h"
 #include "screen.h"
 
 // #define MODBUS_HUART huart1 // modbus 通信 com3
@@ -73,6 +75,7 @@
 
 MotorPWM_t motor_pwm; // 添加电机实例
 Screen_t screen;
+LCD_t lcd;
 
 // Profile_t motor42_profile = {
 //     .max_rpm          = 1000,     // 最高转速
@@ -104,6 +107,14 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+    if (huart->Instance == USART2) {
+        // PRINT_DEBUG("HAL_UART_RxCpltCallback");
+        lcd_receive_byte_callback(&lcd);
+    }
+}
 
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
@@ -224,17 +235,67 @@ int main(void)
     // HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
     // uint16_t data = 0x3130;
 
-    uint8_t data[] = {
-        0xD4, 0xC6, // 云
-        0xC4, 0xCF, // 南
-        0xff, 0xff  // 结束符
-    };
-    uint16_t data_len = sizeof(data) / sizeof(data[0]);
+    /** test screen */
+    // uint8_t data[] = {
+    //     0xD4, 0xC6, // 云
+    //     0xC4, 0xCF, // 南
+    //     0xff, 0xff  // 结束符
+    // };
+    // uint16_t data_len = sizeof(data) / sizeof(data[0]);
 
-    screen_init(&screen, LCD_HUART);
-    screen_switch_page(&screen, 0x01);               // 5A A5 07 82 00 84 5A 01 00 01
-    screen_write_text(&screen, 0x1300, "Hello1111"); // 写入 "Hello"
-    screen_write_str_bytes(&screen, 0x1300, data, data_len);
+    // screen_init(&screen, LCD_HUART);
+    // screen_switch_page(&screen, 0x01);               // 5A A5 07 82 00 84 5A 01 00 01
+    // screen_write_text(&screen, 0x1300, "Hello1111"); // 写入 "Hello"
+    // screen_write_str_bytes(&screen, 0x1300, data, data_len);
+
+    /* test screen end*/
+
+    /* test lcd */
+    lcd_init(&lcd, LCD_HUART, &screen);
+
+    while (!lcd_begin(&lcd)) {
+        PRINT_DEBUG("LCD begin failed\r\n");
+        HAL_Delay(500);
+    }
+
+    // lcd_show_motor_init(&lcd);
+    // HAL_Delay(1000);
+    lcd_show_machine_info(&lcd);
+    uint16_t total_count    = 10000;
+    uint16_t current_count  = 100;
+    float load_rate         = 10;
+    uint16_t rpm            = 10;
+    uint16_t pos            = 100;
+    uint8_t mode            = 0;
+    uint8_t stat            = 0;
+    uint8_t sensor_dn_state = 0;
+    uint8_t sensor_up_state = 0;
+    uint8_t sensor_ld_state = 0;
+    char total_count_str[16];
+    char current_count_str[16];
+
+    while (1) {
+        total_count++;
+        current_count++;
+        rpm++;
+        pos++;
+        mode            = (uint8_t)((mode + 1) % 3);
+        stat            = !stat;
+        sensor_dn_state = !sensor_dn_state;
+        sensor_up_state = !sensor_up_state;
+        sensor_ld_state = !sensor_ld_state;
+        load_rate++;
+
+        sprintf(total_count_str, "%d", total_count);
+        sprintf(current_count_str, "%d", current_count);
+        lcd_update_counter(&lcd, total_count_str, current_count_str);
+        lcd_update_motor_state(&lcd, rpm, pos, load_rate);
+        lcd_update_btn_state(&lcd, mode);
+        lcd_update_sensor_state(&lcd, sensor_dn_state, sensor_up_state, !sensor_ld_state);
+        HAL_Delay(1000);
+    }
+
+    /* test lcd end */
 
     // motor_pwm_init(&motor_pwm, &htim3, MOTOR42_PWM_TIMER_CHANNEL, DIRE_PORT, DIRE_PIN, ENAB_PORT, ENAB_PIN);
 

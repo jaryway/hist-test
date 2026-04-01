@@ -299,9 +299,13 @@ static SN_Status_t _dgus_read_var_regs(UART_HandleTypeDef *huart,
 
     return ret;
 }
-void screen_init(Screen_t *screen, UART_HandleTypeDef *huart)
+uint8_t screen_init(Screen_t *screen, UART_HandleTypeDef *huart)
 {
     screen->huart = huart;
+    return 1;
+}
+void screen_receive_callback(Screen_t *screen)
+{
 }
 uint8_t *screen_read_data(Screen_t *screen, uint16_t var_addr, uint8_t len)
 {
@@ -321,20 +325,20 @@ uint8_t *screen_read_data(Screen_t *screen, uint16_t var_addr, uint8_t len)
 SN_Status_t screen_write_text(Screen_t *screen, uint16_t var_addr, const char *text)
 {
     uint8_t data[DWIN_DGUS_MAX_DATA_LEN];
-    uint16_t text_len = strlen(text);
+    uint16_t len = strlen(text);
 
-    if (text_len + 2 > DWIN_DGUS_MAX_DATA_LEN) {
+    if (len + 2 > DWIN_DGUS_MAX_DATA_LEN) {
         return SN_ERR_PARAM;
     }
 
     // 复制文本
-    memcpy(data, text, text_len);
+    memcpy(data, text, len);
 
     // 添加 0xFFFF 结束符
-    data[text_len++] = 0xFF;
-    data[text_len++] = 0xFF;
+    data[len++] = 0xFF;
+    data[len++] = 0xFF;
 
-    return _dgus_write_var_regs(screen->huart, var_addr, data, text_len, 0, 1000);
+    return _dgus_write_var_regs(screen->huart, var_addr, data, len, 0, 1000);
 }
 
 SN_Status_t screen_write_str_bytes(Screen_t *screen, uint16_t var_addr, const uint8_t *bytes, uint8_t len)
