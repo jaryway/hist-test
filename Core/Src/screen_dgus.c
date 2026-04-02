@@ -341,8 +341,9 @@ SN_Status_t screen_write_text(Screen_t *screen, uint16_t var_addr, const char *t
     return _dgus_write_var_regs(screen->huart, var_addr, data, len, 0, 1000);
 }
 
-SN_Status_t screen_write_str_bytes(Screen_t *screen, uint16_t var_addr, const uint8_t *bytes, uint8_t len)
+SN_Status_t screen_write_str_bytes(Screen_t *screen, uint16_t var_addr, const uint8_t *bytes, uint8_t len, uint8_t clear_bg)
 {
+    (void)clear_bg;
     uint8_t data[DWIN_DGUS_MAX_DATA_LEN];
 
     for (uint16_t i = 0; i < len && i < DWIN_DGUS_MAX_DATA_LEN; i++) {

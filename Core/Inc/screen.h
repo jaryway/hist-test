@@ -281,7 +281,7 @@ uint8_t *screen_read_data(Screen_t *screen, uint16_t var_addr, uint8_t len);
  * @param  text: 文本
  * @retval 状态
  */
-SN_Status_t screen_write_text(Screen_t *screen, uint16_t var_addr, const char *text);
+SN_Status_t screen_write_text(Screen_t *screen, uint16_t var_addr, const char *text, uint8_t clear_bg);
 /**
  * @brief  写入数据
  * @param  screen: screen句柄
@@ -290,7 +290,7 @@ SN_Status_t screen_write_text(Screen_t *screen, uint16_t var_addr, const char *t
  * @param  len: 字节长度
  * @retval 状态
  */
-SN_Status_t screen_write_str_bytes(Screen_t *screen, uint16_t var_addr, const uint8_t *bytes, uint8_t len);
+SN_Status_t screen_write_str_bytes(Screen_t *screen, uint16_t var_addr, const uint8_t *bytes, uint8_t len, uint8_t clear_bg);
 /**
  * @brief  切换页面
  * @param  screen: screen 句柄

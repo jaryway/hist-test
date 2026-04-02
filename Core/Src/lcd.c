@@ -37,22 +37,16 @@ void lcd_show_machine_info(LCD_t *lcd)
 }
 void lcd_update_counter(LCD_t *lcd, const char *total_count, const char *current_count)
 {
-    screen_write_text(lcd->screen, SN_REG_ADDR_TOT_CNT_VAL, total_count);   // 更新总计数
-    screen_write_text(lcd->screen, SN_REG_ADDR_CUR_CNT_VAL, current_count); // 更新当前计数
+    screen_write_text(lcd->screen, SN_REG_ADDR_TOT_CNT_VAL, total_count, 1);   // 更新总计数
+    screen_write_text(lcd->screen, SN_REG_ADDR_CUR_CNT_VAL, current_count, 1); // 更新当前计数
 }
 void lcd_update_btn_state(LCD_t *lcd, const uint8_t mode)
 {
 
-    const uint8_t *mode_str = mode == 0   ? shangyan
-                              : mode == 1 ? xiayan
-                                          : pause;
-    // const uint8_t *stat_str = stat == 0 ? pause : running;
+    const uint8_t *mode_str = mode == 0 ? shangyan : (mode == 1 ? xiayan : pause);
+    uint8_t mode_str_len    = sizeof(mode_str) / sizeof(uint8_t);
 
-    uint8_t mode_str_len = sizeof(mode_str) / sizeof(uint8_t);
-    // uint8_t stat_str_len    = sizeof(stat_str) / sizeof(uint8_t);
-
-    screen_write_str_bytes(lcd->screen, SN_REG_ADDR_MODE_VAL, mode_str, mode_str_len); // 更新模式
-    // screen_write_str_bytes(lcd->screen, SN_REG_ADDR_STA_VAL, stat_str, stat_str_len);  // 更新状态
+    screen_write_str_bytes(lcd->screen, SN_REG_ADDR_MODE_VAL, mode_str, mode_str_len, 1); // 更新模式
 }
 void lcd_update_motor_state(LCD_t *lcd, int16_t rpm, int32_t pos, float load_rate)
 {
@@ -63,19 +57,19 @@ void lcd_update_motor_state(LCD_t *lcd, int16_t rpm, int32_t pos, float load_rat
     if (last_rpm != rpm || first_motor_init) {
         last_rpm = rpm;
         sprintf(rpm_str, "%d", rpm);
-        screen_write_text(lcd->screen, SN_REG_ADDR_RPM_VAL, rpm_str);
+        screen_write_text(lcd->screen, SN_REG_ADDR_RPM_VAL, rpm_str, 1);
     }
 
     if (last_pos != pos || first_motor_init) {
         last_pos = pos;
         sprintf(pos_str, "%ld", pos);
-        screen_write_text(lcd->screen, SN_REG_ADDR_POS_VAL, rpm_str);
+        screen_write_text(lcd->screen, SN_REG_ADDR_POS_VAL, rpm_str, 1);
     }
 
     if (last_load_rate != load_rate || first_motor_init) {
         last_load_rate = load_rate;
         sprintf(load_rate_str, "%.1f", load_rate / 10.0f);
-        screen_write_text(lcd->screen, SN_REG_ADDR_LOAD_RATE_VAL, load_rate_str);
+        screen_write_text(lcd->screen, SN_REG_ADDR_LOAD_RATE_VAL, load_rate_str, 1);
     }
     first_motor_init = 0;
 }
@@ -87,15 +81,15 @@ void lcd_update_sensor_state(LCD_t *lcd, uint8_t sensor_dn_state, uint8_t sensor
 
     if (last_sensor_dn_state != sensor_dn_state || first_sensor_init) {
         last_sensor_dn_state = sensor_dn_state;
-        screen_write_text(lcd->screen, SN_REG_ADDR_DN_VAL, sensor_dn_str);
+        screen_write_text(lcd->screen, SN_REG_ADDR_DN_VAL, sensor_dn_str, 1);
     }
     if (last_sensor_up_state != sensor_up_state || first_sensor_init) {
         last_sensor_up_state = sensor_up_state;
-        screen_write_text(lcd->screen, SN_REG_ADDR_UP_VAL, sensor_up_str);
+        screen_write_text(lcd->screen, SN_REG_ADDR_UP_VAL, sensor_up_str, 1);
     }
     if (last_sensor_ld_state != sensor_ld_state || first_sensor_init) {
         last_sensor_ld_state = sensor_ld_state;
-        screen_write_text(lcd->screen, SN_REG_ADDR_LD_VAL, sensor_ld_str);
+        screen_write_text(lcd->screen, SN_REG_ADDR_LD_VAL, sensor_ld_str, 1);
     }
 
     first_sensor_init = 0;
