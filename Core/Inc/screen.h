@@ -38,16 +38,16 @@ extern "C" {
 #define SN_REG_ADDR_POS_VAL       0x1900 // 位置值
 #define SN_REG_ADDR_MODE_TXT      0x1A00 // 模式标签
 #define SN_REG_ADDR_MODE_VAL      0x1B00 // 模式值
-#define SN_REG_ADDR_STA_TXT       0x1C00 // 状态标签
-#define SN_REG_ADDR_STA_VAL       0x1D00 // 状态值
-#define SN_REG_ADDR_LOAD_RATE_TXT 0x1E00 // 负载率标签
-#define SN_REG_ADDR_LOAD_RATE_VAL 0x1F00 // 负载率值
-#define SN_REG_ADDR_DN_TXT        0x2000 // 下限位标签
-#define SN_REG_ADDR_DN_VAL        0x2001 // 下限位值
-#define SN_REG_ADDR_UP_TXT        0x2002 // 上限位标签
-#define SN_REG_ADDR_UP_VAL        0x2003 // 上限位值
-#define SN_REG_ADDR_LD_TXT        0x2004 // 装载标签
-#define SN_REG_ADDR_LD_VAL        0x2005 // 装载值
+// #define SN_REG_ADDR_STA_TXT       0x1C00 // 状态标签
+// #define SN_REG_ADDR_STA_VAL       0x1D00 // 状态值
+#define SN_REG_ADDR_LOAD_RATE_TXT 0x1C00 // 负载率标签
+#define SN_REG_ADDR_LOAD_RATE_VAL 0x1D00 // 负载率值
+#define SN_REG_ADDR_DN_TXT        0x1E00 // 下限位标签
+#define SN_REG_ADDR_DN_VAL        0x1F00 // 下限位值
+#define SN_REG_ADDR_UP_TXT        0x2000 // 上限位标签
+#define SN_REG_ADDR_UP_VAL        0x2100 // 上限位值
+#define SN_REG_ADDR_LD_TXT        0x2200 // 装载标签
+#define SN_REG_ADDR_LD_VAL        0x2300 // 装载值
 #define SN_REG_ADDR_HOMING        0x2700 // 回零中
 
 static const uint8_t company_name[] = {

@@ -306,6 +306,7 @@ uint8_t screen_init(Screen_t *screen, UART_HandleTypeDef *huart)
 }
 void screen_receive_callback(Screen_t *screen)
 {
+    (void) screen;
 }
 uint8_t *screen_read_data(Screen_t *screen, uint16_t var_addr, uint8_t len)
 {
@@ -322,8 +323,9 @@ uint8_t *screen_read_data(Screen_t *screen, uint16_t var_addr, uint8_t len)
 /**
  * @brief
  */
-SN_Status_t screen_write_text(Screen_t *screen, uint16_t var_addr, const char *text)
+SN_Status_t screen_write_text(Screen_t *screen, uint16_t var_addr, const char *text, uint8_t clear_bg)
 {
+    (void)clear_bg;
     uint8_t data[DWIN_DGUS_MAX_DATA_LEN];
     uint16_t len = strlen(text);
 
