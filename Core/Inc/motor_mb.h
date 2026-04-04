@@ -7,12 +7,12 @@
 #define REG_ADDR_BUS_STATE     0x0B04 // P0B_04 总线状态字
 #define REG_ADDR_PHASE_CUR     0x0B18 // P0B_24 相电流有效值 float
 #define REG_ADDR_BUS_CTRL_MODE 0x0D08 // P0D-08 总线控制字
-#define REG_ADDR_RUN_MODE      0x1003 // 运行模式
+#define REG_ADDR_RUN_MODE      0x1003 // P10-03 运行模式
 #define REG_ADDR_TARGET_POS    0x100E // P10_14 PP 模式目标位置 int32_t
 #define REG_ADDR_MAX_SPEED     0x1017 // P10_23 最大速度限制 int32_t
 #define REG_ADDR_SPEED         0x1019 // P10_25 模式速度  uint32_t
 #define REG_ADDR_ACCEL         0x101B // P10_27 PP 模式加速度  uint32_t
-#define REG_ADDR_DECEL         0x101D // P10_29 PP 模式减速度  uint32_t
+#define REG_ADDR_DECEL         0x101D // P10_29 PP 模式减速度  uint32_t 
 #define REG_ADDR_HOME_MODE     0x1023 // P10_35 回零模式，支持 1~14、17~35
 
 #define SPR                    1600                   /* 旋转一圈需要的脉冲数 */
